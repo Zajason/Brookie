@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
-import 'screens/budget_wheel_screen.dart';
+import 'routing/app_routes.dart';
 
-void main() {
-  runApp(const BudgetWheelApp());
-}
+void main() => runApp(const MyApp());
 
-class BudgetWheelApp extends StatelessWidget {
-  const BudgetWheelApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true),
-      home: const BudgetWheelScreen(),
+      initialRoute: '/',
+      routes: appRoutes(),
     );
   }
 }

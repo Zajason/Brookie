@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../components/budget_detail.dart';
+import '../shell/app_shell.dart';
 import '../components/budget_wheel.dart';
+import '../components/budget_detail.dart';
 import '../models/budget_category.dart';
 
 class BudgetWheelScreen extends StatefulWidget {
@@ -98,9 +99,8 @@ class _BudgetWheelScreenState extends State<BudgetWheelScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
-      body: Container(
+    return AppShell(
+      child: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -108,42 +108,34 @@ class _BudgetWheelScreenState extends State<BudgetWheelScreen> {
             colors: [Color(0xFFF9FAFB), Color(0xFFF3F4F6)],
           ),
         ),
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    const Text("Budget Wheel",
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 6),
-                    Text(
-                      "Click on any segment to see insights",
-                      style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 18),
-
-                    BudgetWheel(
-                      categories: budgetData,
-                      onCategorySelect: (id) {
-                        setState(() {
-                          selected = budgetData.firstWhere((c) => c.id == id);
-                        });
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    if (selected != null)
-                      BudgetDetailCard(category: selected!)
-                    else
-                      const _SelectCategoryPlaceholder(),
-                  ],
-                ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 58, 16, 20), // top padding so burger doesn't overlap title
+              child: Column(
+                children: [
+                  const Text("Budget Wheel",
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Text(
+                    "Click on any segment to see insights",
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 18),
+                  BudgetWheel(
+                    categories: budgetData,
+                    onCategorySelect: (id) {
+                      setState(() => selected = budgetData.firstWhere((c) => c.id == id));
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  if (selected != null)
+                    BudgetDetailCard(category: selected!)
+                  else
+                    const _SelectCategoryPlaceholder(),
+                ],
               ),
             ),
           ),
