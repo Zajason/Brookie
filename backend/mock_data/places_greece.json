@@ -1,0 +1,256 @@
+[
+    {
+      "city": "Athens",
+      "region": "Syntagma",
+      "category": "food",
+      "name": "Budget Bites",
+      "price_level": 1,
+      "rating": 4.3,
+      "lat": 37.976,
+      "lng": 23.734,
+      "notes": "Quick gyros and salads near the square"
+    },
+    {
+      "city": "Athens",
+      "region": "Syntagma",
+      "category": "shop",
+      "name": "Discount Market Center",
+      "price_level": 1,
+      "rating": 4.1,
+      "lat": 37.977,
+      "lng": 23.732,
+      "notes": "Small supermarket with daily offers"
+    },
+  
+    {
+      "city": "Athens",
+      "region": "Nea Smyrni",
+      "category": "food",
+      "name": "Souvlaki Express",
+      "price_level": 1,
+      "rating": 4.4,
+      "lat": 37.942,
+      "lng": 23.723,
+      "notes": "Fast service, popular with students"
+    },
+    {
+      "city": "Athens",
+      "region": "Nea Smyrni",
+      "category": "shop",
+      "name": "Smart Market",
+      "price_level": 1,
+      "rating": 4.0,
+      "lat": 37.944,
+      "lng": 23.725,
+      "notes": "Budget groceries and local produce"
+    },
+  
+    {
+      "city": "Athens",
+      "region": "Kallithea",
+      "category": "food",
+      "name": "Tasty Corner",
+      "price_level": 1,
+      "rating": 4.3,
+      "lat": 37.955,
+      "lng": 23.700,
+      "notes": "Street food and sandwiches"
+    },
+    {
+      "city": "Athens",
+      "region": "Kallithea",
+      "category": "shop",
+      "name": "Value Shop",
+      "price_level": 1,
+      "rating": 4.2,
+      "lat": 37.956,
+      "lng": 23.705,
+      "notes": "Household and student essentials"
+    },
+  
+    {
+      "city": "Athens",
+      "region": "Exarcheia",
+      "category": "food",
+      "name": "Gyros Lab",
+      "price_level": 1,
+      "rating": 4.5,
+      "lat": 37.985,
+      "lng": 23.732,
+      "notes": "Creative souvlaki combinations"
+    },
+    {
+      "city": "Athens",
+      "region": "Exarcheia",
+      "category": "shop",
+      "name": "Thrift Point",
+      "price_level": 1,
+      "rating": 4.6,
+      "lat": 37.987,
+      "lng": 23.733,
+      "notes": "Second-hand clothes and books"
+    },
+  
+    {
+      "city": "Athens",
+      "region": "Glyfada",
+      "category": "food",
+      "name": "Seaside Grill",
+      "price_level": 2,
+      "rating": 4.3,
+      "lat": 37.878,
+      "lng": 23.758,
+      "notes": "Beachside souvlaki with nice views"
+    },
+    {
+      "city": "Athens",
+      "region": "Glyfada",
+      "category": "shop",
+      "name": "SmartChoice Market",
+      "price_level": 2,
+      "rating": 4.1,
+      "lat": 37.882,
+      "lng": 23.762,
+      "notes": "Low prices for quality goods"
+    },
+  
+    {
+      "city": "Athens",
+      "region": "Piraeus",
+      "category": "food",
+      "name": "Port Gyros",
+      "price_level": 1,
+      "rating": 4.4,
+      "lat": 37.946,
+      "lng": 23.646,
+      "notes": "Famous for big portions and low price"
+    },
+    {
+      "city": "Athens",
+      "region": "Piraeus",
+      "category": "shop",
+      "name": "Port Market",
+      "price_level": 1,
+      "rating": 4.2,
+      "lat": 37.947,
+      "lng": 23.648,
+      "notes": "Mini market near the port"
+    },
+  
+    {
+      "city": "Athens",
+      "region": "Chalandri",
+      "category": "food",
+      "name": "Grill House 24",
+      "price_level": 1,
+      "rating": 4.3,
+      "lat": 38.016,
+      "lng": 23.796,
+      "notes": "Late-night grill, student hangout"
+    },
+    {
+      "city": "Athens",
+      "region": "Chalandri",
+      "category": "shop",
+      "name": "Everyday Needs",
+      "price_level": 1,
+      "rating": 4.0,
+      "lat": 38.018,
+      "lng": 23.799,
+      "notes": "Small variety store"
+    },
+  
+    {
+      "city": "Athens",
+      "region": "Marousi",
+      "category": "food",
+      "name": "Lunch Stop",
+      "price_level": 1,
+      "rating": 4.3,
+      "lat": 38.060,
+      "lng": 23.791,
+      "notes": "Student-friendly meal boxes"
+    },
+    {
+      "city": "Athens",
+      "region": "Marousi",
+      "category": "shop",
+      "name": "BudgetLine Market",
+      "price_level": 1,
+      "rating": 4.1,
+      "lat": 38.062,
+      "lng": 23.793,
+      "notes": "Discount groceries"
+    },
+  
+    {
+      "city": "Thessaloniki",
+      "region": "Toumba",
+      "category": "food",
+      "name": "PAOK Grill",
+      "price_level": 1,
+      "rating": 4.5,
+      "lat": 40.609,
+      "lng": 22.972,
+      "notes": "Traditional Thessaloniki souvlaki"
+    },
+    {
+      "city": "Thessaloniki",
+      "region": "Toumba",
+      "category": "shop",
+      "name": "Toumba Market",
+      "price_level": 1,
+      "rating": 4.2,
+      "lat": 40.611,
+      "lng": 22.973,
+      "notes": "Budget groceries and household goods"
+    },
+  
+    {
+      "city": "Thessaloniki",
+      "region": "Ladadika",
+      "category": "food",
+      "name": "Ouzo & Meze",
+      "price_level": 2,
+      "rating": 4.4,
+      "lat": 40.638,
+      "lng": 22.938,
+      "notes": "Traditional meze at fair prices"
+    },
+    {
+      "city": "Thessaloniki",
+      "region": "Ladadika",
+      "category": "shop",
+      "name": "Local Choice Market",
+      "price_level": 1,
+      "rating": 4.0,
+      "lat": 40.639,
+      "lng": 22.939,
+      "notes": "Local products and snacks"
+    },
+  
+    {
+      "city": "Larisa",
+      "region": "Center",
+      "category": "food",
+      "name": "Pita Spot",
+      "price_level": 1,
+      "rating": 4.3,
+      "lat": 39.640,
+      "lng": 22.414,
+      "notes": "Central pita and coffee place"
+    },
+    {
+      "city": "Larisa",
+      "region": "Center",
+      "category": "shop",
+      "name": "City Market",
+      "price_level": 1,
+      "rating": 4.1,
+      "lat": 39.642,
+      "lng": 22.416,
+      "notes": "Groceries and basic goods"
+    }
+  ]
+
+  
