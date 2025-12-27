@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
+import 'screens/budget_wheel_screen.dart';
 
 void main() {
-  runApp(const MainApp());
+  runApp(const BudgetWheelApp());
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class BudgetWheelApp extends StatelessWidget {
+  const BudgetWheelApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: Text('Hello World!'),
-        ),
-      ),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(useMaterial3: true),
+      home: const BudgetWheelScreen(),
     );
   }
 }
