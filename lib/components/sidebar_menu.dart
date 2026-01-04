@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/menu_item.dart';
+import '../services/token_storage.dart';
 
 class SidebarMenu extends StatelessWidget {
   final bool isOpen;
@@ -31,20 +32,18 @@ class SidebarMenu extends StatelessWidget {
 
     return Stack(
       children: [
-        // Backdrop (blur + dim)
+        // Backdrop
         Positioned.fill(
           child: GestureDetector(
             onTap: onClose,
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-              child: Container(
-                color: Colors.black.withOpacity(0.20),
-              ),
+              child: Container(color: Colors.black.withOpacity(0.20)),
             ),
           ),
         ),
 
-        // Sidebar panel (slide in)
+        // Sidebar panel
         Align(
           alignment: Alignment.centerLeft,
           child: TweenAnimationBuilder<double>(
@@ -52,10 +51,7 @@ class SidebarMenu extends StatelessWidget {
             duration: const Duration(milliseconds: 420),
             curve: Curves.easeOutCubic,
             builder: (context, x, child) {
-              return Transform.translate(
-                offset: Offset(x * 340, 0),
-                child: child,
-              );
+              return Transform.translate(offset: Offset(x * 340, 0), child: child);
             },
             child: Padding(
               padding: const EdgeInsets.only(left: 16),
@@ -143,7 +139,6 @@ class _Panel extends StatelessWidget {
                     tween: Tween(begin: 0, end: 1),
                     duration: Duration(milliseconds: 280 + (index * 40)),
                     curve: Curves.easeOut,
-                    // small stagger feel (longer duration per row)
                     builder: (context, t, child) {
                       return Opacity(
                         opacity: t,
@@ -153,11 +148,27 @@ class _Panel extends StatelessWidget {
                         ),
                       );
                     },
+
+                    // 🔴 THIS IS THE IMPORTANT PART 🔴
                     child: _MenuRow(
                       item: item,
-                      onTap: () {
-                        onNavigate(item.route);
-                        onClose();
+                      onTap: () async {
+                        if (item.route == '/logout') {
+                          // ✅ Clear JWT tokens
+                          await TokenStorage.clear();
+
+                          // ✅ Close sidebar
+                          onClose();
+
+                          // ✅ Go to login and wipe history
+                          Navigator.of(context).pushNamedAndRemoveUntil(
+                            '/login',
+                            (route) => false,
+                          );
+                        } else {
+                          onNavigate(item.route);
+                          onClose();
+                        }
                       },
                     ),
                   );

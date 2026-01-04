@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'routing/app_routes.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  runApp(const BrookieApp());
+}
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class BrookieApp extends StatelessWidget {
+  const BrookieApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
-      routes: appRoutes(),
+      initialRoute: '/',          // ✅ start here
+      routes: appRoutes(),        // ✅ keep your existing named routes
     );
   }
 }
