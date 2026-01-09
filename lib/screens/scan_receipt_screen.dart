@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../shell/app_shell.dart';
+import '../services/expense_service.dart';
+import '../models/expense.dart';
 
 class ScanReceiptScreen extends StatefulWidget {
   const ScanReceiptScreen({super.key});
@@ -12,6 +14,7 @@ class ScanReceiptScreen extends StatefulWidget {
 }
 
 class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProviderStateMixin {
+  final ExpenseService _expenseService = ExpenseService();
   CameraController? _controller;
   bool _isCameraReady = false;
   bool _isSimOrNoCamera = false;
@@ -29,6 +32,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
     _scanLineController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000))
       ..repeat();
     _scaleInController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _expenseService.debugListAvailableModels();
 
     _initCamera();
   }
@@ -85,27 +89,55 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
       isComplete = false;
     });
 
-    // Take picture on real device
     try {
+      // Capture the actual image from the camera
       if (_controller != null && _controller!.value.isInitialized) {
         await _controller!.setFlashMode(FlashMode.off);
-        await _controller!.takePicture(); // You can keep XFile and process it later.
+        
+        // This takes the actual photo
+        final XFile photo = await _controller!.takePicture();
+        
+        // Convert the photo file into bytes that Gemini can understand
+        final bytes = await photo.readAsBytes();
+
+        // Send the bytes to your ExpenseService
+        // This will talk to Gemini and save to your backend
+        final expense = await _expenseService.processReceipt(bytes); // comment out if you dont want to spend tokens in testing
+
+        // // MOCK DATA: Pretend the AI worked
+        // final expense = Expense(
+        //   merchant: "Test Shop", 
+        //   amount: 10.0, 
+        //   category: "Groceries", 
+        //   date: DateTime.now()
+        // );
+
+        if (expense != null) {
+          print("Successfully identified: ${expense.merchant} - ${expense.amount}");
+
+          if (mounted) {
+            _showConfirmationSheet(context, expense);
+          }
+        }
+      } else if (_isSimOrNoCamera) {
+        // Fallback for testing UI in the simulator without a camera
+        await Future.delayed(const Duration(seconds: 2));
       }
-    } catch (_) {
-      // If capture fails (e.g. simulator), we still run the UI flow
+    } catch (e) {
+      print("Error during capture or AI processing: $e");
+      // Show an error message to the user
     }
 
-    // Simulate processing (like your React setTimeout)
-    await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
+    // Trigger the "Success" animations
     setState(() {
       isProcessing = false;
       isComplete = true;
     });
     _scaleInController.forward(from: 0);
 
-    // Reset after showing success
+    // Reset the UI back to camera mode after 2 seconds
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
@@ -229,6 +261,122 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
       ),
     );
   }
+
+  void _showConfirmationSheet(BuildContext context, Expense expense) {
+  // Controllers to allow editing if the AI made a tiny mistake
+  final merchantController = TextEditingController(text: expense.merchant);
+  final amountController = TextEditingController(text: expense.amount.toString());
+  String selectedCategory = expense.category;
+
+  final List<String> categories = [
+    'Rent', 'Utilities', 'Entertainment', 'Groceries',
+    'Transportation', 'Savings', 'Healthcare', 'Other'
+  ];
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => Container(
+      padding: EdgeInsets.only(
+        top: 20, left: 20, right: 20, 
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1F2937), // Matches your dark theme
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Verify Expense", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          
+          // Merchant Field
+          TextField(
+            controller: merchantController,
+            style: const TextStyle(color: Colors.white),
+            decoration: _inputDecoration("Merchant"),
+          ),
+          const SizedBox(height: 15),
+
+          // Amount Field
+          TextField(
+            controller: amountController,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: Colors.white),
+            decoration: _inputDecoration("Amount (€)"),
+          ),
+          const SizedBox(height: 15),
+
+          // Category Dropdown
+          DropdownButtonFormField<String>(
+            value: categories.contains(selectedCategory) ? selectedCategory : 'Other',
+            dropdownColor: const Color(0xFF374151),
+            style: const TextStyle(color: Colors.white),
+            decoration: _inputDecoration("Category"),
+            items: categories.map((cat) => DropdownMenuItem(
+              value: cat, 
+              child: Text(cat)
+            )).toList(),
+            onChanged: (val) => selectedCategory = val!,
+          ),
+          const SizedBox(height: 25),
+
+          // Save Button
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF3B82F6),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                final merchant = merchantController.text;
+                final amount = double.tryParse(amountController.text) ?? 0.0;
+                final category = selectedCategory.toLowerCase(); // Django expects lowercase "groceries"
+
+                try {
+                  // We send this to our backend service
+                  await _expenseService.saveToDatabase(
+                    merchant: merchant,
+                    amount: amount,
+                    category: category,
+                  );
+
+                  if (mounted) {
+                    Navigator.pop(context); // Close sheet
+                    Navigator.pushReplacementNamed(context, '/budget');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Added €$amount to $selectedCategory"))
+                    );
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Error saving: $e"))
+                  );
+                }
+              },
+              child: const Text("Confirm & Save", style: TextStyle(color: Colors.white, fontSize: 16)),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// Helper for styling the inputs
+InputDecoration _inputDecoration(String label) {
+  return InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(color: Colors.grey),
+    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(10)),
+    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Color(0xFF3B82F6)), borderRadius: BorderRadius.circular(10)),
+  );
+}
 }
 
 class _VBorder extends StatelessWidget {
@@ -455,12 +603,12 @@ class _CornerBrackets extends StatelessWidget {
           width: w,
           height: w,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(top && left ? r : 0),
-              topRight: Radius.circular(top && right ? r : 0),
-              bottomLeft: Radius.circular(bottom && left ? r : 0),
-              bottomRight: Radius.circular(bottom && right ? r : 0),
-            ),
+            // borderRadius: BorderRadius.only(
+            //   topLeft: Radius.circular(top && left ? r : 0),
+            //   topRight: Radius.circular(top && right ? r : 0),
+            //   bottomLeft: Radius.circular(bottom && left ? r : 0),
+            //   bottomRight: Radius.circular(bottom && right ? r : 0),
+            // ),
             border: Border(
               top: BorderSide(color: top ? c : Colors.transparent, width: t),
               left: BorderSide(color: left ? c : Colors.transparent, width: t),

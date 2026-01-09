@@ -1,6 +1,7 @@
 # Miscellaneous
 *.class
 *.log
+env/secrets.json
 *.pyc
 *.swp
 .DS_Store

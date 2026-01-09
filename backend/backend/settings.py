@@ -29,8 +29,7 @@ SECRET_KEY = 'django-insecure-m%apvjb=r^yr^1evqnw5qww1(szj&mt*yi64m(^5c=bemi=eum
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '10.0.2.2']
 
 # Application definition
 
@@ -41,7 +40,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    "core.apps.CoreConfig",
+    
+    # Your Apps
+    'core',
+    'api',
+    
+    # Third-party Apps
+    'rest_framework',
+    'corsheaders',
 ]
 
 REST_FRAMEWORK = {
@@ -53,6 +59,7 @@ AUTH_USER_MODEL = "core.User"
 
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', # MUST BE AT THE TOP
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -94,8 +101,6 @@ DATABASES = {
 }
 
 # backend/backend/settings.py
-INSTALLED_APPS += ["corsheaders", "rest_framework", "api"]
-MIDDLEWARE = ["corsheaders.middleware.CorsMiddleware", *MIDDLEWARE]
 CORS_ALLOW_ALL_ORIGINS = True  # dev only; tighten later
 
 # Password validation
