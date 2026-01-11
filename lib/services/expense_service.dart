@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/expense.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'token_storage.dart';
+import 'dart:math';
 
 class ExpenseService {
   static const _apiKey = String.fromEnvironment('GEMINI_API_KEY');
@@ -126,7 +127,7 @@ class ExpenseService {
         body: jsonEncode({
           'category': category.toLowerCase(), // Ensure lowercase for Django
           'amount': amount,
-          // 'merchant': merchant, // Uncomment if you add a Merchant field to Django later
+          // 'merchant': merchant, // Uncomment if you add a Merchant field to Django
         }),
       );
 
@@ -140,6 +141,87 @@ class ExpenseService {
       }
     } catch (e) {
       print("Connection Exception: $e");
+      rethrow;
+    }
+  }
+
+  // Generates realistic past transactions using Gemini and saves them to Django
+  Future<int> generateAndSaveBackfill(String accountType) async {
+    String prompt;
+    // --- LOGIC SPLIT BASED ON BUTTON PRESSED ---
+    if (accountType == 'Savings') {
+      // SAVINGS: Low activity, money coming IN or transfers
+      prompt = '''
+        Generate 4 realistic transactions for a Savings Account.
+        Return ONLY a raw JSON list.
+        Keys: "merchant", "amount" (float), "category".
+        
+        Transactions should be things like: "Interest Payment", "Monthly Deposit", "Transfer from Checking", "Goal Contribution".
+        Category must be exactly: "savings".
+        Amounts should be between 20.00 and 2000.00.
+      ''';
+    } else {
+      // CHECKING: High activity, personas, spending money
+      final personas = [
+        "a foodie who eats at restaurants constantly",
+        "a fitness enthusiast who buys supplements and gym gear",
+        "a tech lover who buys gadgets and subscriptions",
+        "a parent buying lots of groceries and kids' stuff",
+        "a traveler with hotel and airline expenses",
+        "a student with small, frugal transactions",
+      ];
+      final randomPersona = personas[Random().nextInt(personas.length)];
+
+      prompt = '''
+        Generate 15 realistic bank transactions for a user who is **$randomPersona**.
+        Return ONLY a raw JSON list.
+        Keys: "merchant", "amount" (float), "category" (rent, utilities, savings, healthcare, groceries, transportation, entertainment, other).
+        Make the amounts and merchants match this specific persona.
+        Make sure the "Other" category dosen't get too many transactions.
+        Example: [{"merchant": "Whole Foods", "amount": 45.20, "category": "groceries"}]
+      ''';
+    }
+
+    try {
+      final content = [Content.text(prompt)];
+      final response = await _model.generateContent(content);
+      String? text = response.text;
+
+      if (text == null) throw Exception("Empty response from AI");
+
+      // --- ROBUST CLEANING (Prevents crashes) ---
+      // Remove markdown
+      text = text.replaceAll('```json', '').replaceAll('```', '').trim();
+      
+      // Find the start '[' and end ']' to ignore any "Here is your JSON" text
+      int startIndex = text.indexOf('[');
+      int endIndex = text.lastIndexOf(']');
+      
+      if (startIndex != -1 && endIndex != -1) {
+        text = text.substring(startIndex, endIndex + 1);
+      } else {
+        throw Exception("AI did not return a valid list");
+      }
+
+      final List<dynamic> transactions = jsonDecode(text);
+
+      int successCount = 0;
+      for (var t in transactions) {
+        try {
+          await saveToDatabase(
+            merchant: t['merchant'],
+            amount: (t['amount'] as num).toDouble(),
+            category: t['category'],
+          );
+          successCount++;
+        } catch (e) {
+          print("Skipped one: $e");
+        }
+      }
+      return successCount;
+
+    } catch (e) {
+      print("Failed to generate history: $e");
       rethrow;
     }
   }

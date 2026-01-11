@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../shell/app_shell.dart';
 import '../models/bank.dart';
+import '../services/expense_service.dart';
 
 class LinkAccountScreen extends StatefulWidget {
   const LinkAccountScreen({super.key});
@@ -20,6 +21,7 @@ class _LinkAccountScreenState extends State<LinkAccountScreen> with TickerProvid
 
   Bank? selectedBank;
   bool showBankList = false;
+  bool isConnecting = false;
 
   final usernameCtrl = TextEditingController();
   final passwordCtrl = TextEditingController();
@@ -30,10 +32,18 @@ class _LinkAccountScreenState extends State<LinkAccountScreen> with TickerProvid
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
 
-  bool get canConnect =>
-      selectedBank != null &&
-      usernameCtrl.text.trim().isNotEmpty &&
-      passwordCtrl.text.trim().isNotEmpty;
+  bool get canConnect {
+    final user = usernameCtrl.text.trim();
+    final pass = passwordCtrl.text.trim();
+
+    // Username must look like an email OR be long enough
+    final validUser = user.contains('@') || user.length > 4;
+
+    // Password must be strong-ish (e.g., 6+ chars)
+    final validPass = pass.length >= 6;
+
+    return selectedBank != null && validUser && validPass;
+  }
 
   @override
   void initState() {
@@ -63,11 +73,46 @@ class _LinkAccountScreenState extends State<LinkAccountScreen> with TickerProvid
     _fieldsAnim.forward(from: 0);
   }
 
-  void _handleConnect() {
+  Future<void> _handleConnect() async {
     if (!canConnect) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Connecting to ${selectedBank!.name}...')),
-    );
+
+    setState(() => isConnecting = true); // Start Spinner
+
+    try {
+      // Fake the "Connection" delay (Authentication simulation)
+      await Future.delayed(const Duration(seconds: 2));
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Connected to ${selectedBank!.name}! Downloading history...')),
+      );
+
+      // Trigger the AI Backfill
+      // We assume you have a provider or can access ExpenseService()
+      final service = ExpenseService(); // Or context.read<ExpenseService>()
+      final count = await service.generateAndSaveBackfill(accountType);
+
+      if (!mounted) return;
+
+      // Success
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Success! Imported $count transactions.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      // Close the screen and go back to Dashboard
+      Navigator.of(context).pushNamedAndRemoveUntil('/budget', (route) => false);
+
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Connection failed: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => isConnecting = false);
+    }
   }
 
   @override
@@ -204,7 +249,7 @@ class _LinkAccountScreenState extends State<LinkAccountScreen> with TickerProvid
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: canConnect ? _handleConnect : null,
+                          onPressed: (canConnect && !isConnecting) ? _handleConnect : null, // Disable while loading
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF3B82F6),
                             disabledBackgroundColor: const Color(0xFF3B82F6).withOpacity(0.40),
@@ -213,7 +258,12 @@ class _LinkAccountScreenState extends State<LinkAccountScreen> with TickerProvid
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                             elevation: 0,
                           ),
-                          child: const Text("Connect Account", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          child: isConnecting
+                            ? const SizedBox(
+                                height: 20, width: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text("Connect Account", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                         ),
                       ),
                       const SizedBox(height: 10),
