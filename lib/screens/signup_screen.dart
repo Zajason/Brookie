@@ -44,7 +44,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return r.hasMatch(username);
   }
 
-  Future<void> _registerAndGoToLogin() async {
+  Future<void> _registerAndGoToBudgetSettings() async {
     final username = _usernameCtrl.text.trim();
     final fullName = _fullNameCtrl.text.trim();
     final email = _emailCtrl.text.trim().toLowerCase();
@@ -92,6 +92,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
 
     try {
+      // 1) Register user
       await AuthService.register(
         username: username,
         fullName: fullName,
@@ -99,14 +100,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
         password: password,
       );
 
+      // 2) Auto-login so JWT tokens are saved and future API calls work
+      await AuthService.login(username: username, password: password);
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account created! Please log in.')),
+        const SnackBar(
+          content: Text('Account created! Set your budgets to continue.'),
+        ),
       );
 
-      // Go to login, wipe stack so back won’t return to signup
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      // 3) Go straight to budget settings (wipe stack)
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/budget-settings',
+        (route) => false,
+      );
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
@@ -146,12 +155,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         Expanded(
                           child: SingleChildScrollView(
                             padding: EdgeInsets.fromLTRB(
-                                32, 8, 32, 28 + bottomInset),
+                              32,
+                              8,
+                              32,
+                              28 + bottomInset,
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // ✅ USERNAME FIELD (added)
+                                // ✅ USERNAME FIELD
                                 const _Label('Username'),
                                 const SizedBox(height: 8),
                                 _TextFieldPill(
@@ -190,13 +203,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   obscureText: !_showPassword,
                                   isShowing: _showPassword,
                                   onToggle: () => setState(
-                                      () => _showPassword = !_showPassword),
+                                    () => _showPassword = !_showPassword,
+                                  ),
                                 ),
                                 const SizedBox(height: 6),
                                 const Text(
                                   'Must be at least 8 characters',
                                   style: TextStyle(
-                                      fontSize: 12, color: Color(0xFF9CA3AF)),
+                                    fontSize: 12,
+                                    color: Color(0xFF9CA3AF),
+                                  ),
                                 ),
                                 const SizedBox(height: 14),
 
@@ -208,7 +224,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   obscureText: !_showConfirm,
                                   isShowing: _showConfirm,
                                   onToggle: () => setState(
-                                      () => _showConfirm = !_showConfirm),
+                                    () => _showConfirm = !_showConfirm,
+                                  ),
                                 ),
 
                                 const SizedBox(height: 14),
@@ -226,7 +243,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                           onChanged: _loading
                                               ? null
                                               : (v) => setState(
-                                                  () => _agree = v ?? false),
+                                                    () => _agree = v ?? false,
+                                                  ),
                                           activeColor:
                                               const Color(0xFF3B82F6),
                                           shape: RoundedRectangleBorder(
@@ -292,7 +310,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       color: const Color(0xFFFEE2E2),
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
-                                          color: const Color(0xFFFCA5A5)),
+                                        color: const Color(0xFFFCA5A5),
+                                      ),
                                     ),
                                     child: Text(
                                       _error!,
@@ -307,9 +326,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 const SizedBox(height: 18),
 
                                 _GradientButton(
-                                  text: _loading ? 'Creating...' : 'Create Account',
+                                  text: _loading
+                                      ? 'Creating...'
+                                      : 'Create Account',
                                   enabled: !_loading,
-                                  onTap: _registerAndGoToLogin,
+                                  onTap: _registerAndGoToBudgetSettings,
                                 ),
 
                                 const SizedBox(height: 18),
@@ -341,11 +362,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 const SizedBox(height: 18),
                                 Center(
                                   child: Wrap(
-                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
                                     children: [
                                       const Text(
                                         'Already have an account? ',
-                                        style: TextStyle(color: Color(0xFF4B5563)),
+                                        style: TextStyle(
+                                          color: Color(0xFF4B5563),
+                                        ),
                                       ),
                                       GestureDetector(
                                         onTap: _loading

@@ -10,6 +10,7 @@ import '../screens/leaderboard_screen.dart';
 import '../screens/ai_chat_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/signup_screen.dart';
+import '../screens/budget_settings.dart';
 
 
 Map<String, WidgetBuilder> appRoutes() {
@@ -24,5 +25,6 @@ Map<String, WidgetBuilder> appRoutes() {
     '/logout': (_) => const PlaceholderScreen(title: 'Log out'),
     '/login': (_) => const LoginScreen(),
     '/signup': (_) => const SignUpScreen(),
+    '/budget-settings': (_) => const BudgetSettingsScreen(),
   };
 }
