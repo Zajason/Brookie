@@ -6,12 +6,13 @@ import '../models/expense.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'token_storage.dart';
 import 'dart:math';
+import '../config/api_config.dart' ;
 
 class ExpenseService {
   static const _apiKey = String.fromEnvironment('GEMINI_API_KEY');
   
   // Replace with your local backend IP (10.0.2.2 for Android Emulator)
-  static const _backendUrl = 'http://10.0.2.2:8000/api/spending/add-receipt/';
+  static String get _backendUrl => '${ApiConfig.baseUrl}/api/spending/add-receipt/'; 
 
   final _model = GenerativeModel(model: 'gemini-2.0-flash', apiKey: _apiKey);
 
