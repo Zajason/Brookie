@@ -1,0 +1,7 @@
+[
+    {"name":"Pita Corner", "type":"restaurant", "category":"food", "price":"$", "tags":["cheap","fast"], "city":"Athens"},
+    {"name":"Souvlaki Hub", "type":"restaurant", "category":"food", "price":"$", "tags":["student"], "city":"Athens"},
+    {"name":"MarketMax", "type":"shop", "category":"groceries", "price":"$", "tags":["bulk","discount"], "city":"Athens"},
+    {"name":"Outlet Street", "type":"shop", "category":"shopping", "price":"$", "tags":["discount"], "city":"Athens"}
+  ]
+  
