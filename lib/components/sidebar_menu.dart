@@ -21,7 +21,7 @@ class SidebarMenu extends StatelessWidget {
     AppMenuItem(icon: Icons.emoji_events_outlined, label: 'Badge library', color: Color(0xFF7C3AED), route: '/badges'),
     AppMenuItem(icon: Icons.leaderboard_rounded, label: 'Leaderboard', color: Color(0xFFF59E0B), route: '/leaderboard'),
     AppMenuItem(icon: Icons.link_rounded, label: 'Link account', color: Color(0xFF16A34A), route: '/link'),
-    AppMenuItem(icon: Icons.account_balance_wallet_outlined, label: 'Manage budgets', color: Color(0xFF4F46E5), route: '/budget'),
+    AppMenuItem(icon: Icons.account_balance_wallet_outlined, label: 'Manage budgets', color: Color(0xFF4F46E5), route: '/budget-settings'),
     AppMenuItem(icon: Icons.receipt_long_outlined, label: 'Scan receipt', color: Color(0xFFEA580C), route: '/scan'),
     AppMenuItem(icon: Icons.logout_rounded, label: 'Log out', color: Color(0xFFDC2626), route: '/logout'),
   ];
