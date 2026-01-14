@@ -27,9 +27,11 @@ class BudgetWheelService {
 
     final budgetsUrl = Uri.parse('${ApiConfig.baseUrl}/api/budgets/');
     final spendingUrl = Uri.parse('${ApiConfig.baseUrl}/api/spending/');
+    final insightsUrl = Uri.parse('${ApiConfig.baseUrl}/api/insights/categories/');
 
     final budgetsRes = await http.get(budgetsUrl, headers: headers);
     final spendingRes = await http.get(spendingUrl, headers: headers);
+    final insightsRes = await http.get(insightsUrl, headers: headers);
 
     if (budgetsRes.statusCode == 401 || spendingRes.statusCode == 401) {
       throw BudgetWheelServiceException('Unauthorized (401). Please log in again.');
@@ -43,6 +45,25 @@ class BudgetWheelService {
 
     final budgetsJson = jsonDecode(budgetsRes.body) as List<dynamic>;
     final spendingJson = jsonDecode(spendingRes.body) as List<dynamic>;
+
+    // Parse insights from API
+    final Map<String, String> insightByCat = {};
+    if (insightsRes.statusCode == 200) {
+      try {
+        final insightsData = jsonDecode(insightsRes.body) as Map<String, dynamic>;
+        final insightsList = insightsData['insights'] as List<dynamic>;
+        for (final item in insightsList) {
+          final m = Map<String, dynamic>.from(item as Map);
+          final cat = (m['category'] ?? '').toString();
+          final insight = (m['insight'] ?? '').toString();
+          if (cat.isNotEmpty && insight.isNotEmpty) {
+            insightByCat[cat] = insight;
+          }
+        }
+      } catch (e) {
+        // Silently fail - will use fallback _aiStub
+      }
+    }
 
     // category -> values
     final Map<String, double> budgetByCat = {};
@@ -83,7 +104,7 @@ class BudgetWheelService {
         color: _colorForCategory(cat),
         budget: budget,
         spent: spent,
-        aiComment: _aiStub(label, budget, spent),
+        aiComment: insightByCat[cat] ?? _aiStub(label, budget, spent),
       );
     }).toList();
   }
