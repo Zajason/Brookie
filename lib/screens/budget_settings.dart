@@ -335,7 +335,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.fromLTRB(20, 64, 20, 20),
+                padding: const EdgeInsets.fromLTRB(56, 76, 20, 20),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),

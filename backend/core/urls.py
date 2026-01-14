@@ -20,6 +20,9 @@ urlpatterns = [
     path("spending/update/", views.spending_update),
     path('spending/add-receipt/', views.add_receipt_spending, name='add-receipt'),
     
+    # Leaderboard
+    path("leaderboard/", views.leaderboard),
+]
     # Analytics & Insights
     path("analytics/peer-averages/", views.peer_averages),
     path("insights/categories/", views.category_insights),           # ✅ NEW: Per-category insights

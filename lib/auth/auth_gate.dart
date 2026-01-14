@@ -16,10 +16,19 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _go() async {
-    final access = await TokenStorage.getAccessToken();
-    final refresh = await TokenStorage.getRefreshToken();
-    final loggedIn = (access != null && access.isNotEmpty) &&
-        (refresh != null && refresh.isNotEmpty);
+    bool loggedIn = false;
+    
+    try {
+      final access = await TokenStorage.getAccessToken()
+          .timeout(const Duration(seconds: 2));
+      final refresh = await TokenStorage.getRefreshToken()
+          .timeout(const Duration(seconds: 2));
+      loggedIn = (access != null && access.isNotEmpty) &&
+          (refresh != null && refresh.isNotEmpty);
+    } catch (e) {
+      // Timeout or error - go to login
+      loggedIn = false;
+    }
 
     if (!mounted) return;
 

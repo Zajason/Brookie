@@ -40,15 +40,18 @@ class Budget(models.Model):
 
 class Spending(models.Model):
     """
-    For now: a single variable per category, per user.
-    Later: you can store bank_spent + receipt_spent separately and compute total.
+    Tracks individual spending entries with date for time-based filtering.
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="spending")
     category = models.CharField(max_length=32, choices=Category.choices)
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    date = models.DateField(default=None, null=True, blank=True)  # When the spending was recorded
 
     class Meta:
-        unique_together = ("user", "category")
+        indexes = [
+            models.Index(fields=['user', 'date']),
+            models.Index(fields=['category', 'date']),
+        ]
 
     def __str__(self):
-        return f"{self.user.username} - {self.category}: {self.amount}"
+        return f"{self.user.username} - {self.category}: {self.amount} ({self.date})"

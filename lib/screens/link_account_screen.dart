@@ -132,7 +132,7 @@ class _LinkAccountScreenState extends State<LinkAccountScreen> with TickerProvid
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.fromLTRB(20, 64, 20, 18),
+                padding: const EdgeInsets.fromLTRB(56, 76, 20, 18),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   border: Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),
@@ -140,22 +140,9 @@ class _LinkAccountScreenState extends State<LinkAccountScreen> with TickerProvid
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () => Navigator.of(context).maybePop(),
-                          borderRadius: BorderRadius.circular(999),
-                          child: const Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Icon(Icons.chevron_left_rounded, size: 28, color: Color(0xFF374151)),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Link Account',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
-                        ),
-                      ],
+                    const Text(
+                      'Link Account',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
                     ),
                     const SizedBox(height: 10),
                     Text(

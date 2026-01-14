@@ -69,7 +69,7 @@ class _BudgetWheelScreenState extends State<BudgetWheelScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 58, 16, 20),
+              padding: const EdgeInsets.fromLTRB(56, 76, 16, 20),
               child: Column(
                 children: [
                   const Text("Budget Wheel",
