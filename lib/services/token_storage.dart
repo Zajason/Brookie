@@ -1,9 +1,8 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-
+/// Using SharedPreferences for iOS Simulator compatibility
+/// In production, consider using flutter_secure_storage
 class TokenStorage {
-  static const _storage = FlutterSecureStorage();
-
   static const _kAccess = 'access_token';
   static const _kRefresh = 'refresh_token';
 
@@ -11,15 +10,24 @@ class TokenStorage {
     required String access,
     required String refresh,
   }) async {
-    await _storage.write(key: _kAccess, value: access);
-    await _storage.write(key: _kRefresh, value: refresh);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kAccess, access);
+    await prefs.setString(_kRefresh, refresh);
   }
 
-  static Future<String?> getAccessToken() => _storage.read(key: _kAccess);
-  static Future<String?> getRefreshToken() => _storage.read(key: _kRefresh);
+  static Future<String?> getAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kAccess);
+  }
+
+  static Future<String?> getRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kRefresh);
+  }
 
   static Future<void> clear() async {
-    await _storage.delete(key: _kAccess);
-    await _storage.delete(key: _kRefresh);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kAccess);
+    await prefs.remove(_kRefresh);
   }
 }

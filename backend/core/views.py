@@ -3,8 +3,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from decimal import Decimal
+from django.db.models import Sum
 
-from .models import Budget, Spending
+from .models import Budget, Spending, User
 from .serializers import (
     RegisterSerializer,
     UserSerializer,
@@ -107,3 +108,90 @@ def add_receipt_spending(request):
     obj.save()
     
     return Response(SpendingSerializer(obj).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def leaderboard(request):
+    """
+    Returns top 10 users by total spending (lowest = best) and current user's rank.
+    Optional query params: 
+      - ?category=groceries (filter by category)
+      - ?period=month or ?period=year (filter by time period)
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    category = request.GET.get("category", None)
+    period = request.GET.get("period", "month")  # default to month
+    
+    # Calculate date range based on period
+    now = timezone.now().date()
+    if period == "year":
+        # Last 12 months (approximately 365 days)
+        start_date = now - timedelta(days=365)
+    else:  # month (default)
+        start_date = now.replace(day=1)
+    
+    # Build aggregation query with date filtering
+    base_qs = Spending.objects.filter(date__gte=start_date)
+    
+    if category and category != "total":
+        # Filter by specific category
+        user_totals = (
+            base_qs.filter(category=category)
+            .values("user_id")
+            .annotate(total=Sum("amount"))
+            .order_by("total")
+        )
+    else:
+        # Total across all categories
+        user_totals = (
+            base_qs.values("user_id")
+            .annotate(total=Sum("amount"))
+            .order_by("total")
+        )
+    
+    # Convert to list for ranking
+    ranked_list = list(user_totals)
+    
+    # Get top 10
+    top_10_data = ranked_list[:10]
+    
+    # Build top 10 response with user details
+    top_10 = []
+    for idx, entry in enumerate(top_10_data):
+        user = User.objects.get(id=entry["user_id"])
+        top_10.append({
+            "rank": idx + 1,
+            "user_id": user.id,
+            "username": user.username,
+            "full_name": user.full_name or user.username,
+            "amount": float(entry["total"] or 0),
+        })
+    
+    # Find current user's rank and amount
+    current_user_rank = None
+    current_user_amount = 0
+    for idx, entry in enumerate(ranked_list):
+        if entry["user_id"] == request.user.id:
+            current_user_rank = idx + 1
+            current_user_amount = float(entry["total"] or 0)
+            break
+    
+    # If user has no spending yet
+    if current_user_rank is None:
+        current_user_rank = len(ranked_list) + 1
+        current_user_amount = 0
+    
+    return Response({
+        "top_10": top_10,
+        "current_user": {
+            "rank": current_user_rank,
+            "user_id": request.user.id,
+            "username": request.user.username,
+            "full_name": request.user.full_name or request.user.username,
+            "amount": current_user_amount,
+        },
+        "total_users": len(ranked_list) if ranked_list else 1,
+    })

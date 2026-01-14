@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../shell/app_shell.dart';
+import '../services/leaderboard_service.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -12,51 +13,61 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   final List<_Category> categories = const [
     _Category(id: 'total', name: 'Total Spending', icon: '💰'),
     _Category(id: 'groceries', name: 'Groceries', icon: '🛒'),
-    _Category(id: 'dining', name: 'Dining Out', icon: '🍽️'),
     _Category(id: 'entertainment', name: 'Entertainment', icon: '🎬'),
-    _Category(id: 'transport', name: 'Transportation', icon: '🚗'),
-    _Category(id: 'shopping', name: 'Shopping', icon: '🛍️'),
+    _Category(id: 'transportation', name: 'Transportation', icon: '🚗'),
+    _Category(id: 'rent', name: 'Rent', icon: '🏠'),
+    _Category(id: 'utilities', name: 'Utilities', icon: '💡'),
+    _Category(id: 'healthcare', name: 'Healthcare', icon: '🏥'),
+    _Category(id: 'savings', name: 'Savings', icon: '🐷'),
+    _Category(id: 'other', name: 'Other', icon: '📦'),
   ];
-
-  final Map<String, List<_UserRow>> leaderboardData = const {
-    'total': [
-      _UserRow(rank: 1, name: 'Sarah Chen', amount: 1842, avatar: '👩🏻'),
-      _UserRow(rank: 2, name: 'Michael Brown', amount: 1956, avatar: '👨🏽'),
-      _UserRow(rank: 3, name: 'Emma Wilson', amount: 2103, avatar: '👩🏼'),
-      _UserRow(rank: 4, name: 'James Lee', amount: 2287, avatar: '👨🏻'),
-      _UserRow(rank: 5, name: 'Olivia Garcia', amount: 2401, avatar: '👩🏽'),
-      _UserRow(rank: 6, name: 'David Kim', amount: 2556, avatar: '👨🏻'),
-      _UserRow(rank: 7, name: 'Sophie Turner', amount: 2689, avatar: '👩🏼'),
-      _UserRow(rank: 8, name: 'Ryan Martinez', amount: 2754, avatar: '👨🏽'),
-      _UserRow(rank: 9, name: 'Ava Johnson', amount: 2843, avatar: '👩🏻'),
-      _UserRow(rank: 10, name: 'Ethan Davis', amount: 2921, avatar: '👨🏼'),
-    ],
-    'groceries': [
-      _UserRow(rank: 1, name: 'Emma Wilson', amount: 234, avatar: '👩🏼'),
-      _UserRow(rank: 2, name: 'Sarah Chen', amount: 267, avatar: '👩🏻'),
-      _UserRow(rank: 3, name: 'Olivia Garcia', amount: 289, avatar: '👩🏽'),
-      _UserRow(rank: 4, name: 'James Lee', amount: 312, avatar: '👨🏻'),
-      _UserRow(rank: 5, name: 'Michael Brown', amount: 334, avatar: '👨🏽'),
-      _UserRow(rank: 6, name: 'Sophie Turner', amount: 356, avatar: '👩🏼'),
-      _UserRow(rank: 7, name: 'David Kim', amount: 378, avatar: '👨🏻'),
-      _UserRow(rank: 8, name: 'Ava Johnson', amount: 392, avatar: '👩🏻'),
-      _UserRow(rank: 9, name: 'Ryan Martinez', amount: 411, avatar: '👨🏽'),
-      _UserRow(rank: 10, name: 'Ethan Davis', amount: 428, avatar: '👨🏼'),
-    ],
-  };
-
-  final _UserRow currentUserPosition = const _UserRow(rank: 47, name: 'You', amount: 3842, avatar: '👤');
 
   late _Category selectedCategory;
   bool showCategories = false;
+  String selectedPeriod = 'month'; // 'month' or 'year'
+  
+  // Real data from backend
+  LeaderboardData? _leaderboardData;
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     selectedCategory = categories.first;
+    _fetchLeaderboard();
   }
 
-  List<_UserRow> get topUsers => leaderboardData[selectedCategory.id] ?? leaderboardData['total']!;
+  Future<void> _fetchLeaderboard() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final data = await LeaderboardService.fetchLeaderboard(
+        category: selectedCategory.id,
+        period: selectedPeriod,
+      );
+      setState(() {
+        _leaderboardData = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _onCategorySelected(_Category category) {
+    setState(() {
+      selectedCategory = category;
+      showCategories = false;
+    });
+    _fetchLeaderboard();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +84,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 64, 20, 16),
+              padding: const EdgeInsets.fromLTRB(56, 76, 20, 16),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 border: Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),
@@ -112,35 +123,80 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
                   const SizedBox(height: 14),
 
-                  // Category filter button
-                  InkWell(
-                    onTap: () => setState(() => showCategories = !showCategories),
-                    borderRadius: BorderRadius.circular(18),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF9FAFB),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.filter_alt_outlined, color: Color(0xFF4B5563)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              "${selectedCategory.icon} ${selectedCategory.name}",
-                              style: const TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w500),
+                  // Category filter and Period toggle row
+                  Row(
+                    children: [
+                      // Category filter button
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => setState(() => showCategories = !showCategories),
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF9FAFB),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.filter_alt_outlined, color: Color(0xFF4B5563)),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    "${selectedCategory.icon} ${selectedCategory.name}",
+                                    style: const TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w500),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                AnimatedRotation(
+                                  turns: showCategories ? 0.5 : 0.0,
+                                  duration: const Duration(milliseconds: 180),
+                                  child: const Icon(Icons.expand_more_rounded, color: Color(0xFF4B5563)),
+                                ),
+                              ],
                             ),
                           ),
-                          AnimatedRotation(
-                            turns: showCategories ? 0.5 : 0.0,
-                            duration: const Duration(milliseconds: 180),
-                            child: const Icon(Icons.expand_more_rounded, color: Color(0xFF4B5563)),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                      
+                      const SizedBox(width: 10),
+                      
+                      // Period toggle (M / Y)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFB),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(
+                          children: [
+                            _PeriodButton(
+                              label: 'M',
+                              isSelected: selectedPeriod == 'month',
+                              onTap: () {
+                                if (selectedPeriod != 'month') {
+                                  setState(() => selectedPeriod = 'month');
+                                  _fetchLeaderboard();
+                                }
+                              },
+                              isLeft: true,
+                            ),
+                            _PeriodButton(
+                              label: 'Y',
+                              isSelected: selectedPeriod == 'year',
+                              onTap: () {
+                                if (selectedPeriod != 'year') {
+                                  setState(() => selectedPeriod = 'year');
+                                  _fetchLeaderboard();
+                                }
+                              },
+                              isLeft: false,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
 
                   // Dropdown
@@ -159,12 +215,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                         children: [
                           for (int i = 0; i < categories.length; i++) ...[
                             InkWell(
-                              onTap: () {
-                                setState(() {
-                                  selectedCategory = categories[i];
-                                  showCategories = false;
-                                });
-                              },
+                              onTap: () => _onCategorySelected(categories[i]),
                               child: Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -190,26 +241,66 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
             // List
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                children: [
-                  for (int i = 0; i < topUsers.length; i++) ...[
-                    _LeaderboardRowCard(user: topUsers[i], elevated: i < 3),
-                    const SizedBox(height: 12),
-                  ],
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('Error loading leaderboard', style: TextStyle(color: Colors.red.shade600)),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                onPressed: _fetchLeaderboard,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _leaderboardData == null || _leaderboardData!.top10.isEmpty
+                          ? const Center(child: Text('No spending data yet'))
+                          : ListView(
+                              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                              children: [
+                                for (int i = 0; i < _leaderboardData!.top10.length; i++) ...[
+                                  _LeaderboardRowCard(
+                                    user: _UserRow(
+                                      rank: _leaderboardData!.top10[i].rank,
+                                      name: _leaderboardData!.top10[i].fullName,
+                                      amount: _leaderboardData!.top10[i].amount.toInt(),
+                                      avatar: _getAvatar(i),
+                                    ),
+                                    elevated: i < 3,
+                                    periodLabel: selectedPeriod == 'year' ? 'this year' : 'this month',
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
 
-                  const SizedBox(height: 4),
-                  _DividerLabel(label: "Your Position"),
-                  const SizedBox(height: 12),
+                                const SizedBox(height: 4),
+                                _DividerLabel(label: "Your Position (#${_leaderboardData!.currentUser.rank} of ${_leaderboardData!.totalUsers})"),
+                                const SizedBox(height: 12),
 
-                  _CurrentUserCard(user: currentUserPosition),
-                ],
-              ),
+                                _CurrentUserCard(
+                                  user: _UserRow(
+                                    rank: _leaderboardData!.currentUser.rank,
+                                    name: 'You',
+                                    amount: _leaderboardData!.currentUser.amount.toInt(),
+                                    avatar: '👤',
+                                  ),
+                                  periodLabel: selectedPeriod == 'year' ? 'this year' : 'this month',
+                                ),
+                              ],
+                            ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _getAvatar(int index) {
+    const avatars = ['👩🏻', '👨🏽', '👩🏼', '👨🏻', '👩🏽', '👨🏻', '👩🏼', '👨🏽', '👩🏻', '👨🏼'];
+    return avatars[index % avatars.length];
   }
 }
 
@@ -218,8 +309,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 class _LeaderboardRowCard extends StatelessWidget {
   final _UserRow user;
   final bool elevated;
+  final String periodLabel;
 
-  const _LeaderboardRowCard({required this.user, required this.elevated});
+  const _LeaderboardRowCard({required this.user, required this.elevated, required this.periodLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -286,7 +378,7 @@ class _LeaderboardRowCard extends StatelessWidget {
             children: [
               Text("\$${user.amount}", style: const TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w600)),
               const SizedBox(height: 2),
-              Text("this month", style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+              Text(periodLabel, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             ],
           ),
         ],
@@ -315,7 +407,8 @@ class _DividerLabel extends StatelessWidget {
 
 class _CurrentUserCard extends StatelessWidget {
   final _UserRow user;
-  const _CurrentUserCard({required this.user});
+  final String periodLabel;
+  const _CurrentUserCard({required this.user, required this.periodLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +456,7 @@ class _CurrentUserCard extends StatelessWidget {
             children: [
               Text("\$${user.amount}", style: const TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w600)),
               const SizedBox(height: 2),
-              Text("this month", style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+              Text(periodLabel, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             ],
           ),
         ],
@@ -406,4 +499,42 @@ _MedalStyle _medalStyle(int rank) {
     return const _MedalStyle(gradient: [Color(0xFFFB923C), Color(0xFFEA580C)], showTrophy: true);
   }
   return const _MedalStyle(gradient: [Color(0xFFF3F4F6), Color(0xFFE5E7EB)], showTrophy: false);
+}
+
+class _PeriodButton extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool isLeft;
+
+  const _PeriodButton({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    required this.isLeft,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF3B82F6) : Colors.transparent,
+          borderRadius: BorderRadius.horizontal(
+            left: isLeft ? const Radius.circular(17) : Radius.zero,
+            right: isLeft ? Radius.zero : const Radius.circular(17),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: isSelected ? Colors.white : const Color(0xFF4B5563),
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -404,7 +404,7 @@ class _TopHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 52, 18, 14),
+      padding: const EdgeInsets.fromLTRB(56, 76, 18, 14),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,

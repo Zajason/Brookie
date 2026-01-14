@@ -205,7 +205,7 @@ class BadgeLibraryScreen extends StatelessWidget {
           children: [
             // HEADER
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 64, 20, 20),
+              padding: const EdgeInsets.fromLTRB(56, 76, 20, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

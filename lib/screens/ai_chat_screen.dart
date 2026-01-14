@@ -97,7 +97,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.fromLTRB(20, 56, 20, 14),
+                padding: const EdgeInsets.fromLTRB(56, 76, 20, 14),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   border: Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),

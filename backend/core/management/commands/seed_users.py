@@ -320,23 +320,42 @@ class Command(BaseCommand):
                 user.university = university
             user.save()
 
-            # Generate budgets + spendings for all categories
+            # Generate budgets + spendings for all categories across 12 months
             income = generate_monthly_income(persona)
             budgets = generate_budgets(income, persona)
-            spendings = generate_spending(budgets, persona)
 
             budget_objs = []
             spending_objs = []
 
+            # Create budgets (one per category)
             for cat in CATS:
                 budget_objs.append(
                     Budget(user=user, category=cat, amount=budgets[cat])
                 )
-                spending_objs.append(
-                    Spending(user=user, category=cat, amount=spendings[cat])
-                )
 
             Budget.objects.bulk_create(budget_objs)
+
+            # Create spending records for each of the past 12 months
+            from datetime import date, timedelta
+            today = date(2026, 1, 14)
+            
+            for months_ago in range(12):
+                # Calculate the date for this month
+                month = today.month - months_ago
+                year = today.year
+                while month <= 0:
+                    month += 12
+                    year -= 1
+                month_date = date(year, month, random.randint(1, 28))
+                
+                # Generate spending with slight variation each month
+                spendings = generate_spending(budgets, persona)
+                
+                for cat in CATS:
+                    spending_objs.append(
+                        Spending(user=user, category=cat, amount=spendings[cat], date=month_date)
+                    )
+
             Spending.objects.bulk_create(spending_objs)
 
             created += 1
