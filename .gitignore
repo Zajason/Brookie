@@ -52,3 +52,12 @@ backend/db.sqlite3
 backend/db.sqlite3-journal
 backend/db.sqlite3-wal
 backend/db.sqlite3-shm
+backend/.env
+
+
+*.env
+.env
+
+# Flutter
+.env
+*.env

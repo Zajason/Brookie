@@ -4,6 +4,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from decimal import Decimal
 from django.db.models import Sum
+from .llm_service import LLMService
+from .analytics_service import AnalyticsService
 
 from .models import Budget, Spending, User
 from .serializers import (
@@ -195,3 +197,92 @@ def leaderboard(request):
         },
         "total_users": len(ranked_list) if ranked_list else 1,
     })
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def peer_averages(request):
+    """
+    Get average spending across all users by category.
+    """
+    averages = AnalyticsService.get_peer_averages(exclude_user_id=request.user.id)
+    return Response(averages)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def category_insights(request):
+    """
+    Get insights for each spending category.
+    Returns detailed comparison with budget and peers.
+    """
+    ensure_user_rows(request.user)
+    
+    insights = AnalyticsService.get_category_insights(request.user)
+    
+    return Response({"insights": insights})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def category_insight_ai(request):
+    """
+    Get AI-generated insight for a specific category.
+    Query params: ?category=groceries
+    """
+    ensure_user_rows(request.user)
+    
+    category = request.GET.get("category")
+    if not category:
+        return Response({"error": "Category parameter required"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get user data
+    user_spending = Spending.objects.filter(user=request.user, category=category).first()
+    user_budget = Budget.objects.filter(user=request.user, category=category).first()
+    
+    spending_amount = float(user_spending.amount) if user_spending else 0
+    budget_amount = float(user_budget.amount) if user_budget else 0
+    
+    # Get peer average for this category
+    peer_averages = AnalyticsService.get_peer_averages(exclude_user_id=request.user.id)
+    peer_avg = peer_averages.get(category, 0)
+    
+    # Get user profile
+    user_profile = {
+        'age': request.user.age,
+        'city': request.user.city,
+        'university': request.user.university
+    }
+    
+    # Generate AI insight
+    insight = LLMService.generate_category_insight(
+        category,
+        spending_amount,
+        budget_amount,
+        peer_avg,
+        user_profile
+    )
+    
+    return Response({
+        "category": category,
+        "insight": insight,
+        "spending": spending_amount,
+        "budget": budget_amount,
+        "peer_average": peer_avg
+    })
+
+
+# Keep the old daily_insight but make it simpler
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def daily_insight(request):
+    """
+    Generate a general one-line financial insight for the dashboard.
+    This is an overall summary, not category-specific.
+    """
+    ensure_user_rows(request.user)
+    
+    user_data = AnalyticsService.get_user_financial_data(request.user)
+    peer_averages = AnalyticsService.get_peer_averages(exclude_user_id=request.user.id)
+    
+    insight = LLMService.generate_one_line_insight(user_data, peer_averages)
+    
+    return Response({"insight": insight})
