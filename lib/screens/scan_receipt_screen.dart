@@ -410,8 +410,17 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
                     );
 
                     if (mounted) {
-                      Navigator.pop(context); // Close sheet
-                      Navigator.pop(context); // Close scan screen
+                      // 1. Close the bottom sheet
+                      Navigator.of(context).pop(); 
+                      
+                      // 2. SAFETY: Check if we can pop, otherwise force Home
+                      if (Navigator.canPop(context)) {
+                        Navigator.of(context).pop(); // Go back if possible
+                      } else {
+                        // Force go to Dashboard if there's nowhere to go back to
+                        Navigator.of(context).pushReplacementNamed('/budget');
+                      }
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text("Added €$amount to $category"),
