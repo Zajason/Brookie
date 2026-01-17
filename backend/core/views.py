@@ -6,6 +6,8 @@ from decimal import Decimal
 from django.db.models import Sum
 from .llm_service import LLMService
 from .analytics_service import AnalyticsService
+from .models import ChatThread, ChatMessage
+from .places_service import PlacesService
 
 from .models import Budget, Spending, User
 from .serializers import (
@@ -17,6 +19,26 @@ from .serializers import (
     SpendingUpdateSerializer,
 )
 from .services import ensure_user_rows
+
+def _is_place_request(text: str) -> bool:
+    t = text.lower()
+    keywords = [
+        "restaurant", "restaurants", "food", "eat", "cheap", "dinner", "lunch",
+        "cafe", "coffee", "bar", "souvlaki", "pizza", "burger",
+        "supermarket", "groceries", "store", "shop", "shopping"
+    ]
+    return any(k in t for k in keywords)
+
+
+def _price_level_to_hint(level):
+    # Google price_level: 0-4 (not always present)
+    if level is None:
+        return "€"
+    try:
+        lvl = int(level)
+    except:
+        return "€"
+    return ["€", "€€", "€€€", "€€€€", "€€€€€"][max(0, min(lvl, 4))]
 
 
 @api_view(["POST"])
@@ -587,3 +609,129 @@ def badges_list(request):
         "earned_count": earned_count,
         "total_count": len(badges),
     })
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def chat_threads(request):
+    if request.method == "POST":
+        t = ChatThread.objects.create(user=request.user, title=request.data.get("title",""))
+        return Response({"id": t.id, "title": t.title}, status=201)
+
+    qs = ChatThread.objects.filter(user=request.user).order_by("-created_at")[:50]
+    return Response([{"id": t.id, "title": t.title, "created_at": t.created_at} for t in qs])
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def chat_thread(request, thread_id: int):
+    t = ChatThread.objects.filter(user=request.user, id=thread_id).first()
+    if not t:
+        return Response({"error":"Not found"}, status=404)
+
+    msgs = t.messages.all()[:200]
+    return Response({
+        "id": t.id,
+        "title": t.title,
+        "messages": [{"role": m.role, "content": m.content, "created_at": m.created_at} for m in msgs]
+    })
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def chat_message(request, thread_id: int):
+    t = ChatThread.objects.filter(user=request.user, id=thread_id).first()
+    if not t:
+        return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    text = (request.data.get("message") or "").strip()
+    if not text:
+        return Response({"error": "Message required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    ensure_user_rows(request.user)
+
+    # Store user message
+    ChatMessage.objects.create(thread=t, role="user", content=text)
+
+    # Build history for LLM (last 10 messages)
+    history_qs = t.messages.all().order_by("-created_at")[:10]
+    conversation_history = [{"role": m.role, "content": m.content} for m in reversed(history_qs)]
+
+    user_data = AnalyticsService.get_user_financial_data(request.user)
+    peer_averages = AnalyticsService.get_peer_averages(exclude_user_id=request.user.id)
+
+    # -------- NEW: Real places context (restaurants/shops) --------
+    extra_context = ""
+    if _is_place_request(text):
+        city = (user_data.get("profile") or {}).get("city") or request.user.city or ""
+        country = (user_data.get("profile") or {}).get("country") or request.user.country or ""
+        location = ", ".join([x for x in [city, country] if x]).strip() or "your area"
+
+        # Decide query type
+        t_lower = text.lower()
+        if any(k in t_lower for k in ["supermarket", "grocer", "groceries", "store", "shopping", "shop"]):
+            query = f"cheap grocery stores in {location}"
+            kind = "grocery"
+        else:
+            query = f"cheap restaurants in {location}"
+            kind = "restaurant"
+
+        places = []
+        try:
+            places = PlacesService.search_places(query=query, max_results=6)
+        except Exception as e:
+            # Don't crash chat; just skip places if API fails
+            print(f"Places API error: {e}")
+            places = []
+
+        if places:
+            lines = []
+            for p in places:
+                price_hint = _price_level_to_hint(p.get("price_level"))
+                rating = p.get("rating", "?")
+                addr = p.get("address", "")
+                url = p.get("maps_url", "")
+                # Markdown line that Flutter will render nicely
+                lines.append(f"- **{p['name']}** ({price_hint}, ⭐ {rating}) — {addr} — [Maps]({url})")
+
+            extra_context = (
+                f"\n\nREAL LOCAL PLACES (use ONLY these for recommendations):\n"
+                + "\n".join(lines)
+                + "\n\nRules for places:\n"
+                  "- Recommend 3–5 options max.\n"
+                  "- Use Markdown bullet list.\n"
+                  "- Include the Maps link exactly as provided.\n"
+                  "- Do NOT invent places not in the list.\n"
+            )
+        else:
+            extra_context = (
+                "\n\nNote: No real place data is available right now. "
+                "If the user asks for specific places, ask for city or enable Places API.\n"
+            )
+
+    # -------- Call LLM (force Markdown formatting via prompt in LLMService) --------
+    answer = LLMService.chat_financial_advice(
+        user_data=user_data,
+        peer_averages=peer_averages,
+        conversation_history=conversation_history[:-1],  # excludes current user msg
+        user_message=text,
+        extra_context=extra_context,
+    )
+
+    # Store assistant message
+    ChatMessage.objects.create(thread=t, role="assistant", content=answer)
+
+    return Response({"reply": answer}, status=status.HTTP_200_OK)
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def recommend_places(request):
+    ensure_user_rows(request.user)
+    category = request.GET.get("category", "restaurants")  # restaurants | groceries | etc
+
+    user_data = AnalyticsService.get_user_financial_data(request.user)
+
+    # TODO: call Google Places / Foursquare here using user city (or lat/lng if you have it)
+    places = []  # list of dicts from the API
+
+    # Then ask GPT to pick top 5 from `places` and explain why (no hallucination)
+    # For now, you can keep your GPT-only fallback if places == []
+    recs = LLMService.recommend_local_places(user_data, category)
+
+    return Response({"category": category, "recommendations": recs})
