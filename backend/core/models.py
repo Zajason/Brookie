@@ -58,18 +58,18 @@ class Meta:
 
 
 class Spending(models.Model):
-    """
-    Tracks individual spending entries with date for time-based filtering.
-    """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="spending")
     category = models.CharField(max_length=32, choices=Category.choices)
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    date = models.DateField(default=None, null=True, blank=True)  # When the spending was recorded
+    date = models.DateField(default=None, null=True, blank=True)
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "category", "date"], name="uniq_spending_user_cat_date"),
+        ]
         indexes = [
-            models.Index(fields=['user', 'date']),
-            models.Index(fields=['category', 'date']),
+            models.Index(fields=["user", "date"]),
+            models.Index(fields=["category", "date"]),
         ]
 
     def __str__(self):
