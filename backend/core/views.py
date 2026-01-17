@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import random
 from openai import OpenAI
 from django.conf import settings
 from rest_framework import status
@@ -838,24 +839,43 @@ def generate_backfill(request):
 
     # 2. Select Prompt based on account type
     today = timezone.now().date().isoformat()
+    
     if account_type == 'Savings':
+        # EXACT PHRASING FROM DART (plus date instruction for backend)
         prompt = f"""
-        Generate 5 transactions for a Savings Account.
-        Return ONLY a JSON object with key "transactions" (list).
-        Inner Keys: "amount" (float), "category" (must be "savings"), "date" (YYYY-MM-DD), "merchant".
+        Generate 4 realistic transactions for a Savings Account.
+        Return ONLY a JSON object with a key "transactions" containing a list.
+        Keys: "merchant", "amount" (float), "category", "date".
+        
+        Transactions should be things like: "Interest Payment", "Monthly Deposit", "Transfer from Checking", "Goal Contribution".
+        Category must be exactly: "savings".
+        Amounts should be between 20.00 and 2000.00.
         Dates: Randomly spaced over last 60 days from {today}.
         """
     else:
+        # PERSONA LOGIC FROM DART
+        personas = [
+            "a foodie who eats at restaurants constantly",
+            "a fitness enthusiast who buys supplements and gym gear",
+            "a tech lover who buys gadgets and subscriptions",
+            "a parent buying lots of groceries and kids' stuff",
+            "a traveler with hotel and airline expenses",
+            "a student with small, frugal transactions",
+        ]
+        random_persona = random.choice(personas)
+
+        # EXACT PHRASING FROM DART (plus date instruction for backend)
         prompt = f"""
-        Generate 15 realistic transactions for a Checking Account.
-        Return ONLY a JSON object with key "transactions" (list).
-        Inner Keys: "amount" (float), "category", "date" (YYYY-MM-DD), "merchant".
+        Generate 15 realistic bank transactions for a user who is **{random_persona}**.
+        Return ONLY a JSON object with a key "transactions" containing a list.
+        Keys: "merchant", "amount" (float), "category", "date".
         
-        CRITICAL RULES:
-        1. Mix these categories: groceries, entertainment, transportation, utilities, healthcare, other.
-        2. Do NOT generate more than 1 'rent' transaction.
-        3. 'groceries' should appear at least 5 times with different amounts.
-        4. Dates must be varied over the last 30 days relative to {today}.
+        Allowed Categories: rent, utilities, savings, healthcare, groceries, transportation, entertainment, other.
+        Make the amounts and merchants match this specific persona.
+        Make sure the "Other" category doesn't get too many transactions.
+        Dates: Varied over the last 30 days relative to {today}.
+        
+        Example: {{"merchant": "Whole Foods", "amount": 45.20, "category": "groceries", "date": "{today}"}}
         """
 
     try:
@@ -874,10 +894,16 @@ def generate_backfill(request):
         count = 0
         for t in transactions:
             try:
+                # Normalize category (handle capitalization if AI messes up)
                 cat = t['category'].lower()
                 amount = Decimal(str(t['amount']))
-                date_obj = datetime.strptime(t['date'], "%Y-%m-%d").date()
                 
+                # Handle Date Parsing
+                try:
+                    date_obj = datetime.strptime(t['date'], "%Y-%m-%d").date()
+                except:
+                    date_obj = timezone.now().date()
+
                 # Update existing day's total OR create new entry
                 obj, created = Spending.objects.get_or_create(
                     user=request.user,
@@ -891,7 +917,10 @@ def generate_backfill(request):
             except Exception as e:
                 print(f"Skipping transaction: {e}")
 
-        return Response({"count": count, "message": "Backfill complete"})
+        return Response({
+            "count": count, 
+            "message": f"Backfill complete. Persona used: {random_persona if account_type != 'Savings' else 'Savings'}"
+        })
 
     except Exception as e:
         return Response({"error": str(e)}, status=500)
