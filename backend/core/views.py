@@ -840,18 +840,22 @@ def generate_backfill(request):
     today = timezone.now().date().isoformat()
     if account_type == 'Savings':
         prompt = f"""
-        Generate 5 realistic transactions for a Savings Account.
-        Return ONLY a raw JSON object with a key "transactions" containing a list.
+        Generate 5 transactions for a Savings Account.
+        Return ONLY a JSON object with key "transactions" (list).
         Inner Keys: "amount" (float), "category" (must be "savings"), "date" (YYYY-MM-DD), "merchant".
-        Dates must be within the last 60 days relative to {today}.
+        Dates: Randomly spaced over last 60 days from {today}.
         """
     else:
         prompt = f"""
-        Generate 15 realistic spending transactions for a standard Checking Account.
-        Return ONLY a raw JSON object with a key "transactions" containing a list.
+        Generate 15 realistic transactions for a Checking Account.
+        Return ONLY a JSON object with key "transactions" (list).
         Inner Keys: "amount" (float), "category", "date" (YYYY-MM-DD), "merchant".
-        Categories: rent, utilities, entertainment, groceries, transportation, healthcare, other.
-        Dates must be within the last 30 days relative to {today}.
+        
+        CRITICAL RULES:
+        1. Mix these categories: groceries, entertainment, transportation, utilities, healthcare, other.
+        2. Do NOT generate more than 1 'rent' transaction.
+        3. 'groceries' should appear at least 5 times with different amounts.
+        4. Dates must be varied over the last 30 days relative to {today}.
         """
 
     try:
