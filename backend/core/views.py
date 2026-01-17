@@ -8,6 +8,7 @@ from .llm_service import LLMService
 from .analytics_service import AnalyticsService
 from .models import ChatThread, ChatMessage
 from .places_service import PlacesService
+from django.utils import timezone
 
 from .models import Budget, Spending, User
 from .serializers import (
@@ -81,56 +82,69 @@ def budget_update(request):
     return Response(BudgetSerializer(obj).data)
 
 
+from django.utils import timezone
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def spending_list(request):
     ensure_user_rows(request.user)
-    qs = Spending.objects.filter(user=request.user).order_by("category")
-    return Response(SpendingSerializer(qs, many=True).data)
 
+    today = timezone.now().date()
+    month_start = today.replace(day=1)
+
+    qs = Spending.objects.filter(user=request.user, date=month_start).order_by("category")
+    return Response(SpendingSerializer(qs, many=True).data)
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def spending_update(request):
-    """
-    For now, you can update spending directly (e.g., simulate bank sync or receipt add).
-    Later you will compute this from bank txns + receipt txns.
-    """
     serializer = SpendingUpdateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
     cat = serializer.validated_data["category"]
     amount = serializer.validated_data["amount"]
 
-    obj, _ = Spending.objects.get_or_create(user=request.user, category=cat)
+    today = timezone.now().date()
+    month_start = today.replace(day=1)
+
+    obj, _ = Spending.objects.get_or_create(
+        user=request.user,
+        category=cat,
+        date=month_start,
+        defaults={"amount": 0},
+    )
     obj.amount = amount
     obj.save()
     return Response(SpendingSerializer(obj).data)
 
+from django.utils import timezone
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def add_receipt_spending(request):
-    """
-    Increments the spending for a category based on a scanned receipt.
-    """
     cat = request.data.get("category")
     amount_str = request.data.get("amount")
-    
+
     if not cat or amount_str is None:
-        return Response({"error": "Category and amount required"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Category and amount required"}, status=400)
 
     try:
         amount_to_add = Decimal(str(amount_str))
     except:
-        return Response({"error": "Invalid amount format"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Invalid amount format"}, status=400)
 
-    # Get the existing row or create a new one starting at 0
-    obj, _ = Spending.objects.get_or_create(user=request.user, category=cat, defaults={'amount': 0})
-    
-    # Increment the total
+    today = timezone.now().date()
+    month_start = today.replace(day=1)
+
+    obj, _ = Spending.objects.get_or_create(
+        user=request.user,
+        category=cat,
+        date=month_start,
+        defaults={"amount": 0},
+    )
     obj.amount += amount_to_add
     obj.save()
-    
+
     return Response(SpendingSerializer(obj).data)
 
 
