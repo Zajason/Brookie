@@ -22,17 +22,13 @@ urlpatterns = [
     
     # Leaderboard
     path("leaderboard/", views.leaderboard),
-]
-    # Analytics & Insights
-    path("analytics/peer-averages/", views.peer_averages),
-    path("insights/categories/", views.category_insights),           # ✅ NEW: Per-category insights
-    path("insights/category-ai/", views.category_insight_ai),        # ✅ NEW: AI insight for one category
-    path("insights/daily/", views.daily_insight),                    # General overview insight
     
-    # Chat & Recommendations
     # Analytics & Insights
     path("analytics/peer-averages/", views.peer_averages),
-    path("insights/categories/", views.category_insights),           # ✅ NEW: Per-category insights
-    path("insights/category-ai/", views.category_insight_ai),        # ✅ NEW: AI insight for one category
-    path("insights/daily/", views.daily_insight),                    # General overview insight
+    path("insights/categories/", views.category_insights),
+    path("insights/category-ai/", views.category_insight_ai),
+    path("insights/daily/", views.daily_insight),
+    
+    # Badges
+    path("badges/", views.badges_list),
 ]

@@ -286,3 +286,304 @@ def daily_insight(request):
     insight = LLMService.generate_one_line_insight(user_data, peer_averages)
     
     return Response({"insight": insight})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BADGE ENDPOINTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+from .models import Badge, UserBadge, Category
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Count
+
+
+def calculate_badge_progress(user, badge):
+    """
+    Calculate the current progress for a user towards a specific badge.
+    Returns (current_progress, is_earned).
+    """
+    now = timezone.now().date()
+    badge_type = badge.badge_type
+    target = badge.target_value
+    
+    if badge_type == "budget_master":
+        # Stayed within grocery budget for a month (30 days)
+        # Count days where daily grocery spending <= daily budget allocation
+        budget = Budget.objects.filter(user=user, category="groceries").first()
+        if not budget or budget.amount == 0:
+            return 0, False
+        
+        # Count days in current month with groceries spending
+        start_of_month = now.replace(day=1)
+        days_in_budget = 0
+        
+        # Get all grocery spending this month grouped by day
+        daily_spending = (
+            Spending.objects.filter(user=user, category="groceries", date__gte=start_of_month)
+            .values('date')
+            .annotate(daily_total=Sum('amount'))
+        )
+        
+        daily_budget = float(budget.amount) / 30  # Approximate daily budget
+        
+        for day_data in daily_spending:
+            if day_data['daily_total'] <= Decimal(str(daily_budget * 1.1)):  # 10% tolerance
+                days_in_budget += 1
+        
+        # Also count days with no spending as "within budget"
+        days_with_spending = daily_spending.count()
+        days_elapsed = (now - start_of_month).days + 1
+        days_no_spending = days_elapsed - days_with_spending
+        days_in_budget += days_no_spending
+        
+        progress = min(days_in_budget, target)
+        return progress, progress >= target
+    
+    elif badge_type == "savings_champion":
+        # Spent less than peers for 12 months
+        peer_averages = AnalyticsService.get_peer_averages(exclude_user_id=user.id)
+        total_peer_avg = sum(peer_averages.values())
+        
+        months_beating_peers = 0
+        
+        for i in range(12):
+            # Calculate spending for each of the last 12 months
+            month_start = (now.replace(day=1) - timedelta(days=30*i)).replace(day=1)
+            if i == 0:
+                month_end = now
+            else:
+                month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            
+            user_spending = Spending.objects.filter(
+                user=user, 
+                date__gte=month_start, 
+                date__lte=month_end
+            ).aggregate(total=Sum('amount'))['total'] or 0
+            
+            if float(user_spending) < total_peer_avg:
+                months_beating_peers += 1
+        
+        return months_beating_peers, months_beating_peers >= target
+    
+    elif badge_type == "thrifty_shopper":
+        # Stayed within entertainment budget for a month
+        budget = Budget.objects.filter(user=user, category="entertainment").first()
+        if not budget or budget.amount == 0:
+            return 0, False
+        
+        start_of_month = now.replace(day=1)
+        daily_budget = float(budget.amount) / 30
+        
+        daily_spending = (
+            Spending.objects.filter(user=user, category="entertainment", date__gte=start_of_month)
+            .values('date')
+            .annotate(daily_total=Sum('amount'))
+        )
+        
+        days_in_budget = 0
+        for day_data in daily_spending:
+            if day_data['daily_total'] <= Decimal(str(daily_budget * 1.1)):
+                days_in_budget += 1
+        
+        days_with_spending = daily_spending.count()
+        days_elapsed = (now - start_of_month).days + 1
+        days_in_budget += (days_elapsed - days_with_spending)
+        
+        progress = min(days_in_budget, target)
+        return progress, progress >= target
+    
+    elif badge_type == "goal_crusher":
+        # Met monthly savings goal (based on savings category)
+        budget = Budget.objects.filter(user=user, category="savings").first()
+        if not budget or budget.amount == 0:
+            return 0, False
+        
+        start_of_month = now.replace(day=1)
+        
+        # Calculate total spending this month
+        total_spending = Spending.objects.filter(
+            user=user, date__gte=start_of_month
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Get total budget
+        total_budget = Budget.objects.filter(user=user).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Savings = budget - spending
+        actual_savings = float(total_budget) - float(total_spending)
+        savings_goal = float(budget.amount)
+        
+        progress = int((actual_savings / savings_goal) * target) if savings_goal > 0 else 0
+        progress = max(0, min(progress, target))
+        
+        return progress, actual_savings >= savings_goal
+    
+    elif badge_type == "spending_slayer":
+        # Reduced spending by 20% compared to last month
+        start_of_month = now.replace(day=1)
+        last_month_start = (start_of_month - timedelta(days=1)).replace(day=1)
+        last_month_end = start_of_month - timedelta(days=1)
+        
+        this_month_spending = Spending.objects.filter(
+            user=user, date__gte=start_of_month
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        last_month_spending = Spending.objects.filter(
+            user=user, date__gte=last_month_start, date__lte=last_month_end
+        ).aggregate(total=Sum('amount'))['total'] or 1  # Avoid division by zero
+        
+        if float(last_month_spending) == 0:
+            return 0, False
+        
+        reduction_pct = (1 - float(this_month_spending) / float(last_month_spending)) * 100
+        progress = int(reduction_pct / 20 * target)  # Scale to target
+        progress = max(0, min(progress, target))
+        
+        return progress, reduction_pct >= 20
+    
+    elif badge_type == "elite_saver":
+        # Beat peer average 6 months in a row
+        peer_averages = AnalyticsService.get_peer_averages(exclude_user_id=user.id)
+        total_peer_avg = sum(peer_averages.values())
+        
+        consecutive_months = 0
+        
+        for i in range(6):
+            month_start = (now.replace(day=1) - timedelta(days=30*i)).replace(day=1)
+            if i == 0:
+                month_end = now
+            else:
+                month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            
+            user_spending = Spending.objects.filter(
+                user=user, date__gte=month_start, date__lte=month_end
+            ).aggregate(total=Sum('amount'))['total'] or 0
+            
+            if float(user_spending) < total_peer_avg:
+                consecutive_months += 1
+            else:
+                break  # Must be consecutive
+        
+        return consecutive_months, consecutive_months >= target
+    
+    elif badge_type == "social_saver":
+        # Stayed within entertainment budget for a month
+        budget = Budget.objects.filter(user=user, category="entertainment").first()
+        if not budget or budget.amount == 0:
+            return 0, False
+        
+        start_of_month = now.replace(day=1)
+        
+        total_entertainment = Spending.objects.filter(
+            user=user, category="entertainment", date__gte=start_of_month
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        days_elapsed = (now - start_of_month).days + 1
+        
+        if float(total_entertainment) <= float(budget.amount):
+            progress = days_elapsed
+        else:
+            # Calculate what percentage of budget used
+            pct_used = float(total_entertainment) / float(budget.amount)
+            progress = int(days_elapsed / pct_used)
+        
+        progress = min(progress, target)
+        return progress, progress >= target and float(total_entertainment) <= float(budget.amount)
+    
+    elif badge_type == "year_legend":
+        # Stayed within total budget for 365 days
+        start_date = now - timedelta(days=365)
+        
+        days_in_budget = 0
+        total_budget = Budget.objects.filter(user=user).aggregate(total=Sum('amount'))['total'] or 0
+        
+        if total_budget == 0:
+            return 0, False
+        
+        daily_budget = float(total_budget) / 30  # Monthly budget / 30 for daily
+        
+        # Group spending by date
+        daily_totals = (
+            Spending.objects.filter(user=user, date__gte=start_date)
+            .values('date')
+            .annotate(daily_total=Sum('amount'))
+        )
+        
+        for day_data in daily_totals:
+            if day_data['daily_total'] <= Decimal(str(daily_budget * 1.2)):  # 20% tolerance
+                days_in_budget += 1
+        
+        # Days with no spending count as in budget
+        days_with_spending = daily_totals.count()
+        days_elapsed = min(365, (now - start_date).days + 1)
+        days_in_budget += (days_elapsed - days_with_spending)
+        
+        progress = min(days_in_budget, target)
+        return progress, progress >= target
+    
+    return 0, False
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def badges_list(request):
+    """
+    Get all badges with user's progress for each.
+    """
+    badges = Badge.objects.all()
+    
+    result = []
+    earned_count = 0
+    
+    for badge in badges:
+        # Get or create user badge record
+        user_badge, created = UserBadge.objects.get_or_create(
+            user=request.user,
+            badge=badge,
+            defaults={'progress': 0, 'earned': False}
+        )
+        
+        # Calculate current progress
+        progress, is_earned = calculate_badge_progress(request.user, badge)
+        
+        # Update if progress changed or newly earned
+        if user_badge.progress != progress or (is_earned and not user_badge.earned):
+            user_badge.progress = progress
+            if is_earned and not user_badge.earned:
+                user_badge.earned = True
+                user_badge.earned_at = timezone.now()
+            user_badge.save()
+        
+        if user_badge.earned:
+            earned_count += 1
+        
+        # Calculate progress percentage
+        progress_pct = (progress / badge.target_value * 100) if badge.target_value > 0 else 0
+        
+        # Format requirement string
+        if badge.badge_type in ["goal_crusher"]:
+            requirement = f"${progress}/${badge.target_value}"
+        elif badge.badge_type in ["savings_champion", "elite_saver"]:
+            requirement = f"{progress}/{badge.target_value} months"
+        else:
+            requirement = f"{progress}/{badge.target_value} days"
+        
+        result.append({
+            "id": badge.id,
+            "badge_type": badge.badge_type,
+            "title": badge.title,
+            "description": badge.description,
+            "icon": badge.icon,
+            "gradient_start": badge.gradient_start,
+            "gradient_end": badge.gradient_end,
+            "progress": progress_pct,
+            "earned": user_badge.earned,
+            "requirement": requirement,
+            "earned_at": user_badge.earned_at.isoformat() if user_badge.earned_at else None,
+        })
+    
+    return Response({
+        "badges": result,
+        "earned_count": earned_count,
+        "total_count": len(badges),
+    })
