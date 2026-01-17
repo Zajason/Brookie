@@ -11,9 +11,14 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file (for local development)
+load_dotenv(BASE_DIR / '.env')
 
 RAG_INDEX_PATH = BASE_DIR / "rag_index.faiss"
 RAG_META_PATH = BASE_DIR / "rag_emb_meta.json"
@@ -24,12 +29,13 @@ RAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-m%apvjb=r^yr^1evqnw5qww1(szj&mt*yi64m(^5c=bemi=eum'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-m%apvjb=r^yr^1evqnw5qww1(szj&mt*yi64m(^5c=bemi=eum')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '10.0.2.2']
+# Add your deployment domain here when you deploy
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost,10.0.2.2').split(',')
 
 # Application definition
 
@@ -61,6 +67,7 @@ AUTH_USER_MODEL = "core.User"
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', # MUST BE AT THE TOP
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add for static files in production
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -93,12 +100,25 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Use PostgreSQL in production, SQLite locally
+if os.getenv('DATABASE_URL'):
+    # Production: use PostgreSQL from environment
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.getenv('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    # Local development: use SQLite
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # backend/backend/settings.py
 CORS_ALLOW_ALL_ORIGINS = True  # dev only; tighten later
@@ -138,6 +158,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Use WhiteNoise for static file serving in production
+if not DEBUG:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

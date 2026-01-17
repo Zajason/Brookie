@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: brookie-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: python manage.py migrate && gunicorn backend.wsgi:application
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: ALLOWED_HOSTS
+        sync: false
+    autoDeploy: true
+    
+  - type: pserv
+    name: brookie-postgres
+    plan: free
+    ipAllowList: []
