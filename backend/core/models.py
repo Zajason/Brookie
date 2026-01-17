@@ -1,5 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
+
+
 
 class User(AbstractUser):
     # Existing
@@ -36,6 +39,22 @@ class Budget(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.category}: {self.amount}"
+    
+class ChatThread(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="chat_threads")
+    title = models.CharField(max_length=120, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class ChatMessage(models.Model):
+    thread = models.ForeignKey(ChatThread, on_delete=models.CASCADE, related_name="messages")
+    role = models.CharField(max_length=20, choices=[("user","user"), ("assistant","assistant")])
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Meta:
+        ordering = ["created_at"]
+
+
 
 
 class Spending(models.Model):

@@ -22,7 +22,7 @@ urlpatterns = [
     
     # Leaderboard
     path("leaderboard/", views.leaderboard),
-]
+
     # Analytics & Insights
     path("analytics/peer-averages/", views.peer_averages),
     path("insights/categories/", views.category_insights),           # ✅ NEW: Per-category insights
@@ -35,4 +35,12 @@ urlpatterns = [
     path("insights/categories/", views.category_insights),           # ✅ NEW: Per-category insights
     path("insights/category-ai/", views.category_insight_ai),        # ✅ NEW: AI insight for one category
     path("insights/daily/", views.daily_insight),                    # General overview insight
+
+
+    path("chat/threads/", views.chat_threads),                 # list/create
+    path("chat/threads/<int:thread_id>/", views.chat_thread),  # get history
+    path("chat/threads/<int:thread_id>/message/", views.chat_message),  # send message
+    path("recommendations/places/", views.recommend_places),
+
+    
 ]
