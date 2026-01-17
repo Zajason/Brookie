@@ -831,29 +831,71 @@ def analyze_receipt(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def generate_backfill(request):
-    debug_logs = [] # 📝 We will collect logs here
+    # 📝 1. Initialize Log Collection (The "Echo" Logic)
+    debug_logs = []
     
     def log(msg):
-        print(msg)
-        debug_logs.append(str(msg))
+        print(msg)  # Print to Render/Terminal logs
+        debug_logs.append(str(msg))  # Add to list to send back to phone
 
-    log("🚀 STARTING BACKFILL (ECHO MODE)...")
+    log("🚀 STARTING BACKFILL (ECHO DEBUG MODE)...")
     
+    # 2. Setup
     account_type = request.data.get('account_type', 'Checking')
     api_key = os.environ.get("OPENAI_API_KEY")
+    
+    if not api_key:
+        log("❌ Critical Error: Missing OPENAI_API_KEY")
+        return Response({
+            "error": "Server missing API Key", 
+            "debug_logs": debug_logs
+        }, status=500)
+        
     client = OpenAI(api_key=api_key)
     today = timezone.now().date().isoformat()
-
-    # ... (Keep your existing Prompt Logic here) ...
-    # For brevity, I'm assuming you use the Persona prompt we discussed.
-    prompt = f"""
-    Generate 15 realistic bank transactions for a {account_type} account.
-    Return ONLY a JSON object with key "transactions" (list).
-    Keys: "amount", "category", "date" (YYYY-MM-DD), "merchant".
-    Rules: 1 rent, 5 groceries, mix of others. Dates in last 30 days relative to {today}.
-    """
     
+    # 3. Construct the Prompt (Persona Logic)
+    if account_type == 'Savings':
+        log("🤖 Mode: Savings Account")
+        prompt = f"""
+        Generate 5 realistic transactions for a Savings Account.
+        Return ONLY a JSON object with a key "transactions" containing a list.
+        Inner Keys: "amount" (float), "category" (must be "savings"), "date" (YYYY-MM-DD), "merchant".
+        
+        Transactions should be things like: "Interest Payment", "Monthly Deposit", "Transfer from Checking", "Goal Contribution".
+        Category must be exactly: "savings".
+        Amounts should be between 20.00 and 2000.00.
+        Dates: Randomly spaced over last 60 days from {today}.
+        """
+    else:
+        # Checking Account - Use Personas
+        personas = [
+            "a foodie who eats at restaurants constantly",
+            "a fitness enthusiast who buys supplements and gym gear",
+            "a tech lover who buys gadgets and subscriptions",
+            "a parent buying lots of groceries and kids' stuff",
+            "a traveler with hotel and airline expenses",
+            "a student with small, frugal transactions",
+        ]
+        random_persona = random.choice(personas)
+        log(f"🤖 Mode: Checking Account | Persona: {random_persona}")
+
+        prompt = f"""
+        Generate 15 realistic bank transactions for a user who is **{random_persona}**.
+        Return ONLY a JSON object with a key "transactions" containing a list.
+        Keys: "merchant", "amount" (float), "category", "date" (YYYY-MM-DD).
+        
+        CRITICAL RULES:
+        1. Mix these categories: rent, utilities, savings, healthcare, groceries, transportation, entertainment, other.
+        2. Do NOT generate more than 1 'rent' transaction.
+        3. 'groceries' or 'entertainment' should appear at least 5 times.
+        4. Dates must be varied over the last 30 days relative to {today}.
+        
+        Example format: {{"transactions": [{{"merchant": "Whole Foods", "amount": 45.20, "category": "groceries", "date": "{today}"}}]}}
+        """
+
     try:
+        # 4. Call OpenAI
         log("⏳ Asking OpenAI...")
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -862,39 +904,66 @@ def generate_backfill(request):
         )
         
         content = response.choices[0].message.content
-        log(f"📩 RAW AI RESPONSE (First 100 chars): {content[:100]}...") 
+        # Log first 100 chars to verify we got JSON
+        log(f"📩 RAW AI RESPONSE (Snippet): {content[:100]}...") 
 
+        # 5. Parse JSON
         data = json.loads(content)
         transactions = data.get('transactions', [])
-        log(f"📊 Parsed {len(transactions)} transactions.")
+        log(f"📊 Parsed {len(transactions)} transactions from AI.")
 
+        # 6. Save to Database Loop
         saved_count = 0
+        valid_cats = ["rent", "utilities", "entertainment", "groceries", 
+                      "transportation", "healthcare", "savings", "other"]
+
         for i, t in enumerate(transactions):
             try:
+                # Extract Raw Data
                 cat_raw = t.get('category', 'unknown')
-                log(f"   [{i}] Processing: {cat_raw} | {t.get('amount')}")
-
-                # ... (Your existing Save Logic) ...
-                cat = cat_raw.lower().strip()
-                # ...
+                amt_raw = t.get('amount', 0)
+                date_raw = t.get('date', today)
+                merchant_raw = t.get('merchant', 'Unknown') # Not saved to DB, but good for logs
                 
-                # DB SAVE (Simulated for brevity in this snippet, keep your real code)
+                log(f"   [{i}] Processing: {merchant_raw} | {cat_raw} | {amt_raw}")
+
+                # Normalize Category
+                cat = cat_raw.lower().strip()
+                if cat not in valid_cats:
+                    log(f"      ⚠️ Invalid category '{cat}'. Mapping to 'other'.")
+                    cat = "other"
+
+                # Parse Amount
+                amount = Decimal(str(amt_raw))
+
+                # Parse Date
+                try:
+                    date_obj = datetime.strptime(date_raw, "%Y-%m-%d").date()
+                except ValueError:
+                    log(f"      ⚠️ Date format error for '{date_raw}'. Using today.")
+                    date_obj = timezone.now().date()
+
+                # DB Operation: Update existing day or create new
                 obj, created = Spending.objects.get_or_create(
                     user=request.user,
                     category=cat,
-                    date=timezone.now().date(), # Use real date parsing logic
+                    date=date_obj,
                     defaults={'amount': 0}
                 )
-                obj.amount += Decimal(str(t.get('amount', 0)))
+                
+                old_amount = obj.amount
+                obj.amount += amount
                 obj.save()
                 
+                log(f"      ✅ Saved! New Total: {obj.amount}")
                 saved_count += 1
-            except Exception as e:
-                log(f"   ❌ FAILED item {i}: {e}")
 
-        log(f"🏁 FINISHED. Saved {saved_count}/{len(transactions)}")
+            except Exception as inner_e:
+                log(f"      ❌ FAILED item {i}: {inner_e}")
+
+        # 7. Final Response
+        log(f"🏁 FINISHED. Successfully saved {saved_count}/{len(transactions)}")
         
-        # ✅ RETURN THE LOGS TO FLUTTER
         return Response({
             "count": saved_count, 
             "message": "Debug complete",
@@ -903,4 +972,7 @@ def generate_backfill(request):
 
     except Exception as e:
         log(f"🔥 CRITICAL ERROR: {e}")
-        return Response({"error": str(e), "debug_logs": debug_logs}, status=500)
+        return Response({
+            "error": str(e), 
+            "debug_logs": debug_logs
+        }, status=500)
