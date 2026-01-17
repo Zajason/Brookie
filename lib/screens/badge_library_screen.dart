@@ -1,30 +1,69 @@
 import 'package:flutter/material.dart';
 import '../shell/app_shell.dart';
-import '../models/badge.dart';
+import '../services/badge_service.dart';
 
+// Map icon names from backend to Flutter IconData
+IconData _getIconFromName(String iconName) {
+  final iconMap = {
+    'restaurant_rounded': Icons.restaurant_rounded,
+    'emoji_events_rounded': Icons.emoji_events_rounded,
+    'auto_awesome_rounded': Icons.auto_awesome_rounded,
+    'track_changes_rounded': Icons.track_changes_rounded,
+    'trending_down_rounded': Icons.trending_down_rounded,
+    'workspace_premium_rounded': Icons.workspace_premium_rounded,
+    'people_alt_rounded': Icons.people_alt_rounded,
+    'calendar_month_rounded': Icons.calendar_month_rounded,
+  };
+  return iconMap[iconName] ?? Icons.star_rounded;
+}
+
+// Parse hex color string to Color
+Color _parseColor(String hex) {
+  hex = hex.replaceAll('#', '');
+  if (hex.length == 6) {
+    hex = 'FF$hex';
+  }
+  return Color(int.parse(hex, radix: 16));
+}
 
 class _BadgeCard extends StatelessWidget {
-  final BadgeModel badge;
+  final BadgeData badge;
   const _BadgeCard({required this.badge});
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: badge.earned ? 1.0 : 0.4,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFF3F4F6)),
-          boxShadow: const [
-            BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 6)),
-          ],
+    final gradientColors = [
+      _parseColor(badge.gradientStart),
+      _parseColor(badge.gradientEnd),
+    ];
+    
+    // Unfinished badges are more visible now (0.7 instead of 0.4)
+    // Icon gets slightly desaturated for unearned badges
+    final iconOpacity = badge.earned ? 1.0 : 0.6;
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: badge.earned ? gradientColors[0].withOpacity(0.3) : const Color(0xFFF3F4F6),
+          width: badge.earned ? 2 : 1,
         ),
-        child: Column(
-          children: [
-            // ICON
-            Container(
+        boxShadow: [
+          BoxShadow(
+            color: badge.earned ? gradientColors[0].withOpacity(0.15) : const Color(0x08000000),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // ICON
+          Opacity(
+            opacity: iconOpacity,
+            child: Container(
               width: 64,
               height: 64,
               decoration: BoxDecoration(
@@ -32,165 +71,133 @@ class _BadgeCard extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: badge.gradient,
+                  colors: badge.earned 
+                      ? gradientColors 
+                      : [Colors.grey.shade400, Colors.grey.shade500],
                 ),
               ),
-              child: Icon(badge.icon, color: Colors.white, size: 32),
+              child: Icon(_getIconFromName(badge.icon), color: Colors.white, size: 32),
             ),
+          ),
 
-            const SizedBox(height: 12),
+          const SizedBox(height: 12),
 
-            Text(
-              badge.title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+          Text(
+            badge.title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: badge.earned ? Colors.black : Colors.grey.shade700,
             ),
+          ),
 
-            const SizedBox(height: 6),
+          const SizedBox(height: 6),
 
-            Text(
-              badge.description,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
+          Text(
+            badge.description,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
 
-            const Spacer(),
+          const Spacer(),
 
-            // PROGRESS
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: ShaderMask(
-                    shaderCallback: (Rect bounds) {
-                      return LinearGradient(
-                        colors: badge.gradient,
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ).createShader(bounds);
-                    },
-                    blendMode: BlendMode.srcIn,
-                    child: LinearProgressIndicator(
-                      value: badge.progress / 100,
-                      minHeight: 6,
-                      backgroundColor: const Color(0xFFE5E7EB),
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+          // PROGRESS BAR
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  // Background track
+                  Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      badge.requirement,
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  // Progress fill with gradient
+                  FractionallySizedBox(
+                    widthFactor: (badge.progress / 100).clamp(0.0, 1.0),
+                    child: Container(
+                      height: 6,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: gradientColors,
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
-                    if (badge.earned)
-                      const Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 16),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    badge.requirement,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  ),
+                  if (badge.earned)
+                    const Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 16),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
 
-class BadgeLibraryScreen extends StatelessWidget {
+class BadgeLibraryScreen extends StatefulWidget {
   const BadgeLibraryScreen({super.key});
 
-  static const List<BadgeModel> badges = [
-    BadgeModel(
-      id: 1,
-      title: 'Budget Master',
-      description: 'Stayed within grocery budget for a month',
-      icon: Icons.restaurant_rounded,
-      progress: 100,
-      earned: true,
-      gradient: [Color(0xFF4ADE80), Color(0xFF10B981)],
-      requirement: '30/30 days',
-    ),
-    BadgeModel(
-      id: 2,
-      title: 'Savings Champion',
-      description: 'Spent less than peers for a full year',
-      icon: Icons.emoji_events_rounded,
-      progress: 100,
-      earned: true,
-      gradient: [Color(0xFFFACC15), Color(0xFFF97316)],
-      requirement: '12/12 months',
-    ),
-    BadgeModel(
-      id: 3,
-      title: 'Thrifty Shopper',
-      description: 'Stayed within shopping budget for a month',
-      icon: Icons.auto_awesome_rounded,
-      progress: 73,
-      earned: false,
-      gradient: [Color(0xFFC084FC), Color(0xFFEC4899)],
-      requirement: '22/30 days',
-    ),
-    BadgeModel(
-      id: 4,
-      title: 'Goal Crusher',
-      description: 'Met your monthly savings goal',
-      icon: Icons.track_changes_rounded,
-      progress: 45,
-      earned: false,
-      gradient: [Color(0xFF60A5FA), Color(0xFF22D3EE)],
-      requirement: '\$450/\$1000',
-    ),
-    BadgeModel(
-      id: 5,
-      title: 'Spending Slayer',
-      description: 'Reduced spending by 20% this month',
-      icon: Icons.trending_down_rounded,
-      progress: 60,
-      earned: false,
-      gradient: [Color(0xFFF87171), Color(0xFFFB7185)],
-      requirement: '12% reduced',
-    ),
-    BadgeModel(
-      id: 6,
-      title: 'Elite Saver',
-      description: 'Beat peer average spending 6 months in a row',
-      icon: Icons.workspace_premium_rounded,
-      progress: 33,
-      earned: false,
-      gradient: [Color(0xFF818CF8), Color(0xFFA855F7)],
-      requirement: '2/6 months',
-    ),
-    BadgeModel(
-      id: 7,
-      title: 'Social Saver',
-      description: 'Stayed within entertainment budget for a month',
-      icon: Icons.people_alt_rounded,
-      progress: 0,
-      earned: false,
-      gradient: [Color(0xFF2DD4BF), Color(0xFF22C55E)],
-      requirement: '0/30 days',
-    ),
-    BadgeModel(
-      id: 8,
-      title: 'Year Legend',
-      description: 'Stayed within total budget for 365 days',
-      icon: Icons.calendar_month_rounded,
-      progress: 0,
-      earned: false,
-      gradient: [Color(0xFFFB923C), Color(0xFFEF4444)],
-      requirement: '0/365 days',
-    ),
-  ];
+  @override
+  State<BadgeLibraryScreen> createState() => _BadgeLibraryScreenState();
+}
+
+class _BadgeLibraryScreenState extends State<BadgeLibraryScreen> {
+  List<BadgeData> _badges = [];
+  int _earnedCount = 0;
+  int _totalCount = 0;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBadges();
+  }
+
+  Future<void> _loadBadges() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final response = await BadgeService.fetchBadges();
+      setState(() {
+        _badges = response.badges;
+        _earnedCount = response.earnedCount;
+        _totalCount = response.totalCount;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final earnedCount = badges.where((b) => b.earned).length;
-    final overallProgress = earnedCount / badges.length;
+    final overallProgress = _totalCount > 0 ? _earnedCount / _totalCount : 0.0;
 
     return AppShell(
       child: Container(
@@ -215,7 +222,7 @@ class BadgeLibraryScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '$earnedCount of ${badges.length} badges earned',
+                    '$_earnedCount of $_totalCount badges earned',
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 14),
@@ -234,27 +241,63 @@ class BadgeLibraryScreen extends StatelessWidget {
               ),
             ),
 
-            // BADGE GRID
+            // CONTENT
             Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 0.78,
-                ),
-                itemCount: badges.length,
-                itemBuilder: (context, index) {
-                  return _BadgeCard(badge: badges[index]);
-                },
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Failed to load badges',
+                                style: TextStyle(color: Colors.grey.shade600),
+                              ),
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: _loadBadges,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _badges.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.emoji_events_outlined, size: 48, color: Colors.grey.shade400),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No badges available yet',
+                                    style: TextStyle(color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _loadBadges,
+                              child: GridView.builder(
+                                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 16,
+                                  crossAxisSpacing: 16,
+                                  childAspectRatio: 0.78,
+                                ),
+                                itemCount: _badges.length,
+                                itemBuilder: (context, index) {
+                                  return _BadgeCard(badge: _badges[index]);
+                                },
+                              ),
+                            ),
             ),
           ],
         ),
       ),
     );
   }
-
-  
 }
