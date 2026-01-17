@@ -32,7 +32,6 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
     _scanLineController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000))
       ..repeat();
     _scaleInController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
-    _expenseService.debugListAvailableModels();
 
     _initCamera();
   }
@@ -266,6 +265,8 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
   // Controllers to allow editing if the AI made a tiny mistake
   final merchantController = TextEditingController(text: expense.merchant);
   final amountController = TextEditingController(text: expense.amount.toString());
+  String initialDate = expense.date.toIso8601String().split('T')[0];
+  final dateController = TextEditingController(text: initialDate);
   String selectedCategory = expense.category;
 
   final List<String> categories = [
@@ -310,6 +311,16 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
           ),
           const SizedBox(height: 15),
 
+          // Date Field
+          TextField(
+                controller: dateController,
+                decoration: const InputDecoration(
+                  labelText: "Date (YYYY-MM-DD)",
+                  suffixIcon: Icon(Icons.calendar_today),
+                ),
+                keyboardType: TextInputType.datetime,
+              ),
+
           // Category Dropdown
           DropdownButtonFormField<String>(
             value: categories.contains(selectedCategory) ? selectedCategory : 'Other',
@@ -337,6 +348,12 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
                 final merchant = merchantController.text;
                 final amount = double.tryParse(amountController.text) ?? 0.0;
                 final category = selectedCategory.toLowerCase(); // Django expects lowercase "groceries"
+                DateTime finalDate;
+                  try {
+                    finalDate = DateTime.parse(dateController.text);
+                  } catch (e) {
+                    finalDate = DateTime.now(); // Fallback
+                  }
 
                 try {
                   // We send this to our backend service
@@ -344,6 +361,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
                     merchant: merchant,
                     amount: amount,
                     category: category,
+                    date: finalDate,
                   );
 
                   if (mounted) {

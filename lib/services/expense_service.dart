@@ -10,6 +10,8 @@ class ExpenseService {
   // WE REMOVED THE API KEY FROM HERE. 
   // The phone is now "dumb" - it just sends images to the server.
 
+  static String get _backfillUrl => '${ApiConfig.baseUrl}/api/generate-backfill/';
+
   // 1. New Endpoint for Analysis
   static String get _analyzeUrl => '${ApiConfig.baseUrl}/api/analyze-receipt/';
   
@@ -72,10 +74,13 @@ class ExpenseService {
   Future<void> saveToDatabase({
     required double amount,
     required String category,
-    String? merchant, // Added this to match your request
+    required DateTime date,
+    String? merchant,
   }) async {
     final token = await TokenStorage.getAccessToken();
     if (token == null) throw Exception("User is not logged in");
+
+    String dateStr = date.toIso8601String().split('T')[0];
 
     try {
       final response = await http.post(
@@ -87,7 +92,8 @@ class ExpenseService {
         body: jsonEncode({
           'category': category.toLowerCase(),
           'amount': amount,
-          // 'merchant': merchant, // Uncomment if backend supports it
+          'date': dateStr,
+          'merchant': merchant, // Uncomment if backend supports it
         }),
       );
 
@@ -102,13 +108,32 @@ class ExpenseService {
     }
   }
 
-  /* NOTE: generateAndSaveBackfill is commented out because we removed the 
-   Gemini API Key from the frontend. To fix this feature, you would need 
-   to create a backend endpoint like '/api/generate-backfill/' and move 
-   the prompt logic to Django, similar to how we moved the receipt analysis.
-  */
   Future<int> generateAndSaveBackfill(String accountType) async {
-    print("Backfill generation requires backend implementation.");
-    return 0; 
+    final token = await TokenStorage.getAccessToken();
+    if (token == null) throw Exception("User is not logged in");
+
+    try {
+      final response = await http.post(
+        Uri.parse(_backfillUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'account_type': accountType,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['count'] ?? 0;
+      } else {
+        print("Backfill failed: ${response.body}");
+        return 0;
+      }
+    } catch (e) {
+      print("Backfill error: $e");
+      return 0;
+    }
   }
 }

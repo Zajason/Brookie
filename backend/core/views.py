@@ -14,6 +14,7 @@ from .analytics_service import AnalyticsService
 from .models import ChatThread, ChatMessage
 from .places_service import PlacesService
 from django.utils import timezone
+from datetime import datetime
 
 from .models import Budget, Spending, User
 from .serializers import (
@@ -45,57 +46,6 @@ def _price_level_to_hint(level):
     except:
         return "€"
     return ["€", "€€", "€€€", "€€€€", "€€€€€"][max(0, min(lvl, 4))]
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def analyze_receipt(request):
-    # 1. Get the image from the request
-    image_data = request.data.get('image') # Expecting base64 string
-    if not image_data:
-        return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-    # 2. Setup OpenAI Client (Key should be in your .env or settings)
-    # Make sure settings.OPENAI_API_KEY is loaded from your environment variables
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY")) 
-
-    prompt_text = (
-        "Analyze this receipt. Return ONLY a JSON object. "
-        "Categorize this expense into EXACTLY one of these labels: "
-        "rent, utilities, entertainment, groceries, transportation, healthcare, savings, other. "
-        "Format: {'merchant': 'string', 'amount': number, 'category': 'string', 'date': 'YYYY-MM-DD'} "
-        "If the date is missing on the receipt, use today's date."
-    )
-
-    try:
-        # 3. Call OpenAI from the Server
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt_text},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
-                        }
-                    ]
-                }
-            ],
-            max_tokens=500,
-        )
-
-        # 4. Clean and parse the response
-        content = response.choices[0].message.content
-        # Basic cleanup just in case
-        content = content.replace("```json", "").replace("```", "").strip()
-        
-        return Response(json.loads(content))
-
-    except Exception as e:
-        print(f"OpenAI Error: {e}")
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -179,6 +129,7 @@ from django.utils import timezone
 def add_receipt_spending(request):
     cat = request.data.get("category")
     amount_str = request.data.get("amount")
+    date_str = request.data.get("date")  # ✅ NEW: Get the date from the phone
 
     if not cat or amount_str is None:
         return Response({"error": "Category and amount required"}, status=400)
@@ -188,15 +139,27 @@ def add_receipt_spending(request):
     except:
         return Response({"error": "Invalid amount format"}, status=400)
 
-    today = timezone.now().date()
-    month_start = today.replace(day=1)
+    # ✅ NEW: Parse the specific date, or fallback to today
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            target_date = timezone.now().date()
+    else:
+        target_date = timezone.now().date()
 
-    obj, _ = Spending.objects.get_or_create(
+    # Normalize to the start of the month if your app only tracks monthly totals,
+    # BUT since your model constraint is (user, category, date), 
+    # we should probably update that SPECIFIC day's row.
+    
+    # Logic: Find the row for that specific Date + Category and add to it.
+    obj, created = Spending.objects.get_or_create(
         user=request.user,
         category=cat,
-        date=month_start,
+        date=target_date, # Use the receipt date
         defaults={"amount": 0},
     )
+    
     obj.amount += amount_to_add
     obj.save()
 
@@ -860,3 +823,71 @@ def analyze_receipt(request):
     except Exception as e:
         print(f"OpenAI Error: {e}")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_backfill(request):
+    account_type = request.data.get('account_type', 'Checking')
+    
+    # 1. Setup OpenAI
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return Response({"error": "Server missing API Key"}, status=500)
+    
+    client = OpenAI(api_key=api_key)
+
+    # 2. Select Prompt based on account type
+    today = timezone.now().date().isoformat()
+    if account_type == 'Savings':
+        prompt = f"""
+        Generate 5 realistic transactions for a Savings Account.
+        Return ONLY a raw JSON object with a key "transactions" containing a list.
+        Inner Keys: "amount" (float), "category" (must be "savings"), "date" (YYYY-MM-DD), "merchant".
+        Dates must be within the last 60 days relative to {today}.
+        """
+    else:
+        prompt = f"""
+        Generate 15 realistic spending transactions for a standard Checking Account.
+        Return ONLY a raw JSON object with a key "transactions" containing a list.
+        Inner Keys: "amount" (float), "category", "date" (YYYY-MM-DD), "merchant".
+        Categories: rent, utilities, entertainment, groceries, transportation, healthcare, other.
+        Dates must be within the last 30 days relative to {today}.
+        """
+
+    try:
+        # 3. Ask AI
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        
+        content = response.choices[0].message.content
+        data = json.loads(content)
+        transactions = data.get('transactions', [])
+
+        # 4. Save to Database
+        count = 0
+        for t in transactions:
+            try:
+                cat = t['category'].lower()
+                amount = Decimal(str(t['amount']))
+                date_obj = datetime.strptime(t['date'], "%Y-%m-%d").date()
+                
+                # Update existing day's total OR create new entry
+                obj, created = Spending.objects.get_or_create(
+                    user=request.user,
+                    category=cat,
+                    date=date_obj,
+                    defaults={'amount': 0}
+                )
+                obj.amount += amount
+                obj.save()
+                count += 1
+            except Exception as e:
+                print(f"Skipping transaction: {e}")
+
+        return Response({"count": count, "message": "Backfill complete"})
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
