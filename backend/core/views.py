@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from decimal import Decimal
+from datetime import date
 from django.db.models import Sum
 from .llm_service import LLMService
 from .analytics_service import AnalyticsService
@@ -63,8 +64,16 @@ def budget_update(request):
 @permission_classes([IsAuthenticated])
 def spending_list(request):
     ensure_user_rows(request.user)
-    qs = Spending.objects.filter(user=request.user).order_by("category")
-    return Response(SpendingSerializer(qs, many=True).data)
+    
+    # Group by category and SUM the amounts
+    qs = Spending.objects.filter(user=request.user) \
+        .values('category') \
+        .annotate(amount=Sum('amount')) \
+        .order_by('category')
+        
+    # 'qs' is now a list of dictionaries: [{'category': 'rent', 'amount': 500}, ...]
+    # This matches what the frontend expects for the wheel
+    return Response(qs)
 
 
 @api_view(["PATCH"])
@@ -84,33 +93,6 @@ def spending_update(request):
     obj.amount = amount
     obj.save()
     return Response(SpendingSerializer(obj).data)
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def add_receipt_spending(request):
-    """
-    Increments the spending for a category based on a scanned receipt.
-    """
-    cat = request.data.get("category")
-    amount_str = request.data.get("amount")
-    
-    if not cat or amount_str is None:
-        return Response({"error": "Category and amount required"}, status=status.HTTP_400_BAD_REQUEST)
-
-    try:
-        amount_to_add = Decimal(str(amount_str))
-    except:
-        return Response({"error": "Invalid amount format"}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Get the existing row or create a new one starting at 0
-    obj, _ = Spending.objects.get_or_create(user=request.user, category=cat, defaults={'amount': 0})
-    
-    # Increment the total
-    obj.amount += amount_to_add
-    obj.save()
-    
-    return Response(SpendingSerializer(obj).data)
-
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -286,3 +268,50 @@ def daily_insight(request):
     insight = LLMService.generate_one_line_insight(user_data, peer_averages)
     
     return Response({"insight": insight})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_spending(request):
+    user = request.user
+    data = request.data
+
+    category = data.get('category', '').lower()
+    try:
+        amount = Decimal(str(data.get('amount', 0)))
+    except:
+        return Response({"error": "Invalid amount"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Date Handling
+    date_str = data.get('date')
+    if date_str:
+        try:
+            spending_date = date.fromisoformat(date_str)
+        except ValueError:
+            return Response({"error": "Invalid date format"}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        spending_date = date.today()
+
+    if amount <= 0:
+        return Response({"error": "Amount must be positive"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Logic: Get existing or Create new
+    spending_entry, created = Spending.objects.get_or_create(
+        user=user,
+        category=category,
+        date=spending_date,
+        defaults={'amount': amount}
+    )
+
+    if not created:
+        spending_entry.amount += amount
+        spending_entry.save()
+        message = f"Updated {category} for {spending_date}. New total: {spending_entry.amount}"
+    else:
+        message = f"Created {category} for {spending_date} with {amount}"
+
+    return Response({
+        "message": message,
+        "amount": str(spending_entry.amount),
+        "date": str(spending_entry.date),
+        "category": spending_entry.category
+    }, status=status.HTTP_201_CREATED)

@@ -24,6 +24,6 @@ class Expense {
     'merchant': merchant,
     'amount': amount,
     'category': category,
-    'date': date.toIso8601String(),
+    'date': date.toIso8601String().split('T')[0],
   };
 }
