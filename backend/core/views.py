@@ -1,3 +1,8 @@
+import base64
+import json
+import os
+from openai import OpenAI
+from django.conf import settings
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -41,6 +46,56 @@ def _price_level_to_hint(level):
         return "€"
     return ["€", "€€", "€€€", "€€€€", "€€€€€"][max(0, min(lvl, 4))]
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def analyze_receipt(request):
+    # 1. Get the image from the request
+    image_data = request.data.get('image') # Expecting base64 string
+    if not image_data:
+        return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 2. Setup OpenAI Client (Key should be in your .env or settings)
+    # Make sure settings.OPENAI_API_KEY is loaded from your environment variables
+    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY")) 
+
+    prompt_text = (
+        "Analyze this receipt. Return ONLY a JSON object. "
+        "Categorize this expense into EXACTLY one of these labels: "
+        "rent, utilities, entertainment, groceries, transportation, healthcare, savings, other. "
+        "Format: {'merchant': 'string', 'amount': number, 'category': 'string', 'date': 'YYYY-MM-DD'} "
+        "If the date is missing on the receipt, use today's date."
+    )
+
+    try:
+        # 3. Call OpenAI from the Server
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
+                        }
+                    ]
+                }
+            ],
+            max_tokens=500,
+        )
+
+        # 4. Clean and parse the response
+        content = response.choices[0].message.content
+        # Basic cleanup just in case
+        content = content.replace("```json", "").replace("```", "").strip()
+        
+        return Response(json.loads(content))
+
+    except Exception as e:
+        print(f"OpenAI Error: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -749,3 +804,59 @@ def recommend_places(request):
     recs = LLMService.recommend_local_places(user_data, category)
 
     return Response({"category": category, "recommendations": recs})
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI RECEIPT ANALYSIS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def analyze_receipt(request):
+    # 1. Get the image from the request
+    image_data = request.data.get('image') # Expecting base64 string
+    if not image_data:
+        return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 2. Setup OpenAI Client
+    # Ensure OPENAI_API_KEY is set in your Render Dashboard Environment Variables
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return Response({"error": "Server configuration error: Missing API Key"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    client = OpenAI(api_key=api_key) 
+
+    prompt_text = (
+        "Analyze this receipt. Return ONLY a JSON object. "
+        "Categorize this expense into EXACTLY one of these labels: "
+        "rent, utilities, entertainment, groceries, transportation, healthcare, savings, other. "
+        "Format: {'merchant': 'string', 'amount': number, 'category': 'string', 'date': 'YYYY-MM-DD'} "
+        "If the date is missing on the receipt, use today's date."
+    )
+
+    try:
+        # 3. Call OpenAI from the Server
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
+                        }
+                    ]
+                }
+            ],
+            max_tokens=500,
+        )
+
+        # 4. Clean and parse the response
+        content = response.choices[0].message.content
+        return Response(json.loads(content))
+
+    except Exception as e:
+        print(f"OpenAI Error: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

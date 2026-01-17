@@ -19,6 +19,7 @@ urlpatterns = [
     path("spending/", views.spending_list),
     path("spending/update/", views.spending_update),
     path('spending/add-receipt/', views.add_receipt_spending, name='add-receipt'),
+    path('analyze-receipt/', views.analyze_receipt, name='analyze-receipt'),
     
     # Leaderboard
     path("leaderboard/", views.leaderboard),
