@@ -109,7 +109,7 @@ Password: Test12345!
 ## β) SDK / Platforms / Links
 
 ### 🔧 Platforms
-- **Android:** Android 8.0+ (API 26)
+- **Android:** Android 14.0+ (API 34)
 - **iOS:** iOS 13+
 - **Cross-platform εφαρμογή** (ενιαίος κώδικας)
 
