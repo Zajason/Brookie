@@ -75,7 +75,7 @@ class _BudgetWheelScreenState extends State<BudgetWheelScreen> {
               child: Column(
                 children: [
                   const Text(
-                    "Budget Wheel",
+                    "Spending wheel",
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 6),

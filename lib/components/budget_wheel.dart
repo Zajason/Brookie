@@ -164,7 +164,7 @@ class _BudgetWheelState extends State<BudgetWheel> with SingleTickerProviderStat
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text("Total Budget", style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                          Text("Total Spendings", style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
                           const SizedBox(height: 4),
                           Text(
                             "\$${formatNumber(totalBudget)}",
