@@ -354,30 +354,11 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                 ),
                 child: Column(
                   children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () => Navigator.of(context).maybePop(),
-                          borderRadius: BorderRadius.circular(999),
-                          child: const Padding(
-                            padding: EdgeInsets.all(8),
-                            child: Icon(Icons.chevron_left_rounded, size: 28, color: Color(0xFF374151)),
-                          ),
-                        ),
-
-                        // ✅ Title centered properly
-                        const Expanded(
-                          child: Center(
-                            child: Text(
-                              "Budget Settings",
-                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
-                            ),
-                          ),
-                        ),
-
-                        // ✅ match the back button visual width so title is truly centered
-                        const SizedBox(width: 44),
-                      ],
+                    const Center(
+                      child: Text(
+                        "Budget Settings",
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
+                      ),
                     ),
                     const SizedBox(height: 14),
 
