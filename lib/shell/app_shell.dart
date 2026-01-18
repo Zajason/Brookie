@@ -9,10 +9,14 @@ class AppShell extends StatefulWidget {
   /// If false, content can render under the notch/status bar (full-bleed).
   final bool safeArea;
 
+  /// If true, shows the burger menu button.
+  final bool showMenuButton;
+
   const AppShell({
     super.key,
     required this.child,
     this.safeArea = false, // ✅ default full-bleed
+    this.showMenuButton = true,
   });
 
   @override
@@ -44,13 +48,14 @@ class _AppShellState extends State<AppShell> {
                   : widget.child,
 
               // ✅ Burger button TOP-LEFT
-              Positioned(
-                top: 8 + (widget.safeArea ? 0 : topInset),
-                left: 8,
-                child: _BurgerButton(
-                  onTap: () => setState(() => isOpen = true),
+              if (widget.showMenuButton)
+                Positioned(
+                  top: 8 + (widget.safeArea ? 0 : topInset),
+                  left: 8,
+                  child: _BurgerButton(
+                    onTap: () => setState(() => isOpen = true),
+                  ),
                 ),
-              ),
             ],
           ),
         ),

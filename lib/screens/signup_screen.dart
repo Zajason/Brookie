@@ -130,6 +130,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return AppShell(
+      showMenuButton: false,
       child: Scaffold(
         resizeToAvoidBottomInset: true,
         backgroundColor: Colors.transparent,
