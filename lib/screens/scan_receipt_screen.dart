@@ -494,49 +494,13 @@ class _TopHeader extends StatelessWidget {
           colors: [Color(0xCC000000), Color(0x00000000)],
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _GlassIconButton(icon: Icons.close_rounded, onTap: onClose),
-          const Text(
-            "Scan Receipt",
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          _GlassIconButton(icon: Icons.image_outlined, onTap: onGallery),
-        ],
-      ),
+      
     );
   }
 }
 
-class _GlassIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
 
-  const _GlassIconButton({required this.icon, required this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.20),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Icon(icon, color: Colors.white, size: 24),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _ScanningFrame extends StatelessWidget {
   final bool isScanning;

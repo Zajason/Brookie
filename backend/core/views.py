@@ -93,6 +93,9 @@ def budget_update(request):
 
 from django.utils import timezone
 
+from django.utils import timezone
+from django.db.models import Sum
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def spending_list(request):
@@ -101,8 +104,43 @@ def spending_list(request):
     today = timezone.now().date()
     month_start = today.replace(day=1)
 
-    qs = Spending.objects.filter(user=request.user, date=month_start).order_by("category")
-    return Response(SpendingSerializer(qs, many=True).data)
+    # Sum all daily rows in the current month, grouped by category
+    monthly = (
+        Spending.objects
+        .filter(user=request.user, date__gte=month_start, date__lte=today)
+        .values("category")
+        .annotate(amount=Sum("amount"))
+        .order_by("category")
+    )
+
+    # Build response in the same shape your Flutter expects
+    # (category, amount, category_label)
+    rows = []
+    for item in monthly:
+        cat = item["category"]
+        rows.append({
+            "category": cat,
+            "amount": float(item["amount"] or 0),
+            "category_label": cat.capitalize(),  # or map properly if you have choices
+        })
+
+    # Ensure ALL categories exist (so wheel always has full list)
+    # budgets_list already ensures categories, but we also guarantee spendings list returns 8 cats
+    existing = {r["category"] for r in rows}
+    all_cats = ["rent", "utilities", "entertainment", "groceries",
+                "transportation", "healthcare", "savings", "other"]
+
+    for cat in all_cats:
+        if cat not in existing:
+            rows.append({
+                "category": cat,
+                "amount": 0.0,
+                "category_label": cat.capitalize(),
+            })
+
+    rows.sort(key=lambda x: x["category"])
+    return Response(rows)
+
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])

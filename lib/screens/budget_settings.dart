@@ -14,7 +14,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   bool loading = true;
   String? error;
 
-  // ✅ Fixed categories (includes Entertainment so it matches backend categories)
   late List<BudgetSettingsItem> items = [
     BudgetSettingsItem(
       key: 'rent',
@@ -161,7 +160,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-
               Row(
                 children: [
                   Container(
@@ -175,36 +173,52 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                         colors: item.gradient,
                       ),
                       boxShadow: const [
-                        BoxShadow(color: Color(0x22000000), blurRadius: 18, offset: Offset(0, 10)),
+                        BoxShadow(
+                          color: Color(0x22000000),
+                          blurRadius: 18,
+                          offset: Offset(0, 10),
+                        ),
                       ],
                     ),
-                    child: Center(child: Text(item.icon, style: const TextStyle(fontSize: 30))),
+                    child: Center(
+                      child: Text(item.icon, style: const TextStyle(fontSize: 30)),
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.label,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                        Text(
+                          item.label,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF111827),
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        Text("Set your monthly budget limit",
-                            style: TextStyle(color: Colors.grey.shade600)),
+                        Text(
+                          "Set your monthly budget limit",
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
-
               const SizedBox(height: 18),
-
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text("Monthly Limit",
-                    style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                child: Text(
+                  "Monthly Limit",
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
               const SizedBox(height: 10),
-
               TextField(
                 controller: controller,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -229,15 +243,12 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                 ),
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
               ),
-
               const SizedBox(height: 14),
-
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text("Quick select:", style: TextStyle(color: Colors.grey.shade600)),
               ),
               const SizedBox(height: 10),
-
               GridView.count(
                 crossAxisCount: 4,
                 mainAxisSpacing: 8,
@@ -254,14 +265,14 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                         border: Border.all(color: const Color(0xFFE5E7EB)),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Center(child: Text('\$$amt', style: const TextStyle(color: Color(0xFF374151)))),
+                      child: Center(
+                        child: Text('\$$amt', style: const TextStyle(color: Color(0xFF374151))),
+                      ),
                     ),
                   );
                 }).toList(),
               ),
-
               const SizedBox(height: 16),
-
               Row(
                 children: [
                   Expanded(
@@ -309,7 +320,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 10),
             ],
           ),
@@ -335,7 +345,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.fromLTRB(56, 76, 20, 20),
+                // ✅ FIX: symmetric horizontal padding (was fromLTRB(56,...,20,...))
+                padding: const EdgeInsets.symmetric(horizontal: 16).copyWith(top: 76, bottom: 20),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
@@ -353,14 +364,19 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                             child: Icon(Icons.chevron_left_rounded, size: 28, color: Color(0xFF374151)),
                           ),
                         ),
-                        const SizedBox(width: 8),
+
+                        // ✅ Title centered properly
                         const Expanded(
                           child: Center(
-                            child: Text("Budget Settings",
-                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                            child: Text(
+                              "Budget Settings",
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 36), // spacing like React
+
+                        // ✅ match the back button visual width so title is truly centered
+                        const SizedBox(width: 44),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -384,8 +400,10 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                             children: const [
                               Icon(Icons.trending_up_rounded, color: Colors.white, size: 20),
                               SizedBox(width: 8),
-                              Text("Total Monthly Budget",
-                                  style: TextStyle(color: Color(0xDFFFFFFF), fontWeight: FontWeight.w600)),
+                              Text(
+                                "Total Monthly Budget",
+                                style: TextStyle(color: Color(0xDFFFFFFF), fontWeight: FontWeight.w600),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -394,8 +412,10 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                             children: [
                               const Text("\$", style: TextStyle(color: Colors.white, fontSize: 18)),
                               const SizedBox(width: 4),
-                              Text(totalBudget.toStringAsFixed(0),
-                                  style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900)),
+                              Text(
+                                totalBudget.toStringAsFixed(0),
+                                style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 6),
@@ -436,7 +456,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                         : RefreshIndicator(
                             onRefresh: _load,
                             child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                              // ✅ keep symmetric padding too
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
                               itemCount: items.length,
                               separatorBuilder: (_, __) => const SizedBox(height: 12),
                               itemBuilder: (context, i) {
@@ -476,8 +497,14 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text(it.label,
-                                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                                                Text(
+                                                  it.label,
+                                                  style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Color(0xFF111827),
+                                                  ),
+                                                ),
                                                 if (it.limit > 0)
                                                   Text(
                                                     "\$${it.spent.toStringAsFixed(0)} / \$${it.limit.toStringAsFixed(0)}",
