@@ -117,5 +117,5 @@ Password: Test12345!
 - **APK (Android):** (επισυνάπτεται)
 - **Backend API (Remote):**
   - https://brookie-qmcm.onrender.com
-- **Repository:** (επισυνάπτεται αν ζητηθεί)� Brookie – Cross-Platform Mobile Application (Android & iOS)
+- **Repository:** https://github.com/Zajason/Brookie/tree/serverside
 - **Video Demo:** Επισυνάπτεται βίντεο που κάνει showcase όλο το functionality της εφαρμογής.
