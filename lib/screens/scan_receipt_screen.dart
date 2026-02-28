@@ -32,7 +32,6 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
     _scanLineController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000))
       ..repeat();
     _scaleInController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
-    _expenseService.debugListAvailableModels();
 
     _initCamera();
   }
@@ -264,119 +263,202 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> with TickerProvid
 
   void _showConfirmationSheet(BuildContext context, Expense expense) {
   // Controllers to allow editing if the AI made a tiny mistake
-  final merchantController = TextEditingController(text: expense.merchant);
-  final amountController = TextEditingController(text: expense.amount.toString());
-  String selectedCategory = expense.category;
+  final merchantController = TextEditingController(text: expense.merchant ?? "Unknown");
+    final amountController = TextEditingController(text: expense.amount.toString());
+    
+    // Date Logic
+    String initialDate = expense.date.toIso8601String().split('T')[0];
+    final dateController = TextEditingController(text: initialDate);
+    
+    String selectedCategory = expense.category;
+    // Ensure category matches one of our known types, capitalize first letter
+    final List<String> categories = [
+      'Rent', 'Utilities', 'Entertainment', 'Groceries', 
+      'Transportation', 'Healthcare', 'Savings', 'Other'
+    ];
+    
+    // Normalize category string for dropdown match (e.g. "groceries" -> "Groceries")
+    String normalize(String c) {
+      if (c.isEmpty) return "Other";
+      return c[0].toUpperCase() + c.substring(1).toLowerCase();
+    }
+    selectedCategory = normalize(selectedCategory);
+    if (!categories.contains(selectedCategory)) selectedCategory = 'Other';
 
-  final List<String> categories = [
-    'Rent', 'Utilities', 'Entertainment', 'Groceries',
-    'Transportation', 'Savings', 'Healthcare', 'Other'
-  ];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: EdgeInsets.only(
+          top: 24, left: 24, right: 24, 
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1F2937), // Matches your dark theme
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Verify Expense", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            
+            // Merchant Field
+            TextField(
+              controller: merchantController,
+              style: const TextStyle(color: Colors.white),
+              decoration: _inputDecoration("Merchant", prefixIcon: const Icon(Icons.store, color: Colors.white70)),
+            ),
+            const SizedBox(height: 15),
 
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) => Container(
-      padding: EdgeInsets.only(
-        top: 20, left: 20, right: 20, 
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20
-      ),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1F2937), // Matches your dark theme
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("Verify Expense", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          
-          // Merchant Field
-          TextField(
-            controller: merchantController,
-            style: const TextStyle(color: Colors.white),
-            decoration: _inputDecoration("Merchant"),
-          ),
-          const SizedBox(height: 15),
+            // Amount Field
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: Colors.white),
+              decoration: _inputDecoration("Amount (€)", prefixIcon: const Icon(Icons.euro, color: Colors.white70)),
+            ),
+            const SizedBox(height: 15),
 
-          // Amount Field
-          TextField(
-            controller: amountController,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
-            decoration: _inputDecoration("Amount (€)"),
-          ),
-          const SizedBox(height: 15),
-
-          // Category Dropdown
-          DropdownButtonFormField<String>(
-            value: categories.contains(selectedCategory) ? selectedCategory : 'Other',
-            dropdownColor: const Color(0xFF374151),
-            style: const TextStyle(color: Colors.white),
-            decoration: _inputDecoration("Category"),
-            items: categories.map((cat) => DropdownMenuItem(
-              value: cat, 
-              child: Text(cat)
-            )).toList(),
-            onChanged: (val) => selectedCategory = val!,
-          ),
-          const SizedBox(height: 25),
-
-          // Save Button
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () async {
-                final merchant = merchantController.text;
-                final amount = double.tryParse(amountController.text) ?? 0.0;
-                final category = selectedCategory.toLowerCase(); // Django expects lowercase "groceries"
-
-                try {
-                  // We send this to our backend service
-                  await _expenseService.saveToDatabase(
-                    merchant: merchant,
-                    amount: amount,
-                    category: category,
-                  );
-
-                  if (mounted) {
-                    Navigator.pop(context); // Close sheet
-                    Navigator.pushReplacementNamed(context, '/budget');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Added €$amount to $selectedCategory"))
+            // ✅ NEW: Native Date Picker Field (Styled)
+            GestureDetector(
+              onTap: () async {
+                DateTime? pickedDate = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.tryParse(dateController.text) ?? DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                  builder: (context, child) {
+                    // Force Dark Theme for the Calendar Picker
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: const ColorScheme.dark(
+                          primary: Color(0xFF3B82F6), // Blue selection
+                          onPrimary: Colors.white,
+                          surface: Color(0xFF1F2937), // Dark background
+                          onSurface: Colors.white,
+                        ),
+                      ),
+                      child: child!,
                     );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Error saving: $e"))
-                  );
+                  },
+                );
+                
+                if (pickedDate != null) {
+                  dateController.text = pickedDate.toIso8601String().split('T')[0];
                 }
               },
-              child: const Text("Confirm & Save", style: TextStyle(color: Colors.white, fontSize: 16)),
+              child: AbsorbPointer( // Prevents keyboard from opening
+                child: TextField(
+                  controller: dateController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDecoration(
+                    "Date", 
+                    prefixIcon: const Icon(Icons.calendar_today, color: Colors.white70)
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+            const SizedBox(height: 15),
 
-// Helper for styling the inputs
-InputDecoration _inputDecoration(String label) {
-  return InputDecoration(
-    labelText: label,
-    labelStyle: const TextStyle(color: Colors.grey),
-    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(10)),
-    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Color(0xFF3B82F6)), borderRadius: BorderRadius.circular(10)),
-  );
-}
+            // Category Dropdown
+            DropdownButtonFormField<String>(
+              value: categories.contains(selectedCategory) ? selectedCategory : 'Other',
+              dropdownColor: const Color(0xFF374151),
+              style: const TextStyle(color: Colors.white),
+              decoration: _inputDecoration("Category", prefixIcon: const Icon(Icons.category, color: Colors.white70)),
+              items: categories.map((cat) => DropdownMenuItem(
+                value: cat, 
+                child: Text(cat)
+              )).toList(),
+              onChanged: (val) => selectedCategory = val!,
+            ),
+            const SizedBox(height: 25),
+
+            // Save Button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3B82F6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: () async {
+                  final merchant = merchantController.text;
+                  final amount = double.tryParse(amountController.text) ?? 0.0;
+                  final category = selectedCategory;
+                  
+                  // Parse Date safely
+                  DateTime finalDate;
+                  try {
+                    finalDate = DateTime.parse(dateController.text);
+                  } catch (e) {
+                    finalDate = DateTime.now();
+                  }
+
+                  try {
+                    // Send to backend
+                    await _expenseService.saveToDatabase(
+                      merchant: merchant,
+                      amount: amount,
+                      category: category,
+                      date: finalDate, // ✅ Pass the date
+                    );
+
+                    if (mounted) {
+                      // 1. Close the bottom sheet
+                      Navigator.of(context).pop(); 
+                      
+                      // 2. SAFETY: Check if we can pop, otherwise force Home
+                      if (Navigator.canPop(context)) {
+                        Navigator.of(context).pop(); // Go back if possible
+                      } else {
+                        // Force go to Dashboard if there's nowhere to go back to
+                        Navigator.of(context).pushReplacementNamed('/budget');
+                      }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Added €$amount to $category"),
+                          backgroundColor: Colors.green,
+                        )
+                      );
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Error saving: $e"), backgroundColor: Colors.red)
+                    );
+                  }
+                },
+                child: const Text("Confirm & Save", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  // Helper for styling the inputs
+  InputDecoration _inputDecoration(String label, {Widget? prefixIcon}) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white70),
+      filled: true,
+      fillColor: const Color(0xFF374151), // Dark grey input background
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      prefixIcon: prefixIcon,
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+    );
+  }
 }
 
 class _VBorder extends StatelessWidget {
@@ -412,49 +494,13 @@ class _TopHeader extends StatelessWidget {
           colors: [Color(0xCC000000), Color(0x00000000)],
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _GlassIconButton(icon: Icons.close_rounded, onTap: onClose),
-          const Text(
-            "Scan Receipt",
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          _GlassIconButton(icon: Icons.image_outlined, onTap: onGallery),
-        ],
-      ),
+      
     );
   }
 }
 
-class _GlassIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
 
-  const _GlassIconButton({required this.icon, required this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.20),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Icon(icon, color: Colors.white, size: 24),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _ScanningFrame extends StatelessWidget {
   final bool isScanning;

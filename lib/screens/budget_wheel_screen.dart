@@ -69,15 +69,19 @@ class _BudgetWheelScreenState extends State<BudgetWheelScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(56, 76, 16, 20),
+              // ✅ FIXED: symmetric horizontal padding
+              padding: const EdgeInsets.symmetric(horizontal: 16)
+                  .copyWith(top: 76, bottom: 20),
               child: Column(
                 children: [
-                  const Text("Budget Wheel",
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
+                  const Text(
+                    "Spending wheel",
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     "Click on any segment to see insights",
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 18),
@@ -86,14 +90,13 @@ class _BudgetWheelScreenState extends State<BudgetWheelScreen> {
                     const SizedBox(height: 30),
                     const CircularProgressIndicator(),
                     const SizedBox(height: 12),
-                    Text("Loading your budgets...",
-                        style: TextStyle(color: Colors.grey.shade600)),
+                    Text(
+                      "Loading your budgets...",
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
                     const SizedBox(height: 30),
                   ] else if (error != null) ...[
-                    _ErrorCard(
-                      message: error!,
-                      onRetry: _load,
-                    ),
+                    _ErrorCard(message: error!, onRetry: _load),
                   ] else if (categories.isEmpty) ...[
                     _ErrorCard(
                       message: "No categories returned from server.",
@@ -103,7 +106,10 @@ class _BudgetWheelScreenState extends State<BudgetWheelScreen> {
                     BudgetWheel(
                       categories: categories,
                       onCategorySelect: (id) {
-                        setState(() => selected = categories.firstWhere((c) => c.id == id));
+                        setState(() {
+                          selected =
+                              categories.firstWhere((c) => c.id == id);
+                        });
                       },
                     ),
                     const SizedBox(height: 16),
@@ -115,7 +121,6 @@ class _BudgetWheelScreenState extends State<BudgetWheelScreen> {
 
                   const SizedBox(height: 16),
 
-                  // optional manual refresh
                   if (!loading)
                     TextButton.icon(
                       onPressed: _load,
@@ -136,7 +141,10 @@ class _ErrorCard extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
 
-  const _ErrorCard({required this.message, required this.onRetry});
+  const _ErrorCard({
+    required this.message,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +156,11 @@ class _ErrorCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: const [
-          BoxShadow(color: Color(0x1A000000), blurRadius: 16, offset: Offset(0, 8)),
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
         ],
       ),
       child: Column(
@@ -166,11 +178,13 @@ class _ErrorCard extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF3B82F6),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
               elevation: 0,
             ),
             child: const Text("Retry"),
-          )
+          ),
         ],
       ),
     );
@@ -190,7 +204,11 @@ class _SelectCategoryPlaceholder extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: const [
-          BoxShadow(color: Color(0x1A000000), blurRadius: 16, offset: Offset(0, 8)),
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
         ],
       ),
       child: Column(

@@ -1,3 +1,10 @@
+import base64
+import json
+import os
+import random
+import logging
+from openai import OpenAI
+from django.conf import settings
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -9,6 +16,7 @@ from .analytics_service import AnalyticsService
 from .models import ChatThread, ChatMessage
 from .places_service import PlacesService
 from django.utils import timezone
+from datetime import datetime
 
 from .models import Budget, Spending, User
 from .serializers import (
@@ -20,6 +28,8 @@ from .serializers import (
     SpendingUpdateSerializer,
 )
 from .services import ensure_user_rows
+
+logger = logging.getLogger(__name__)
 
 def _is_place_request(text: str) -> bool:
     t = text.lower()
@@ -40,7 +50,6 @@ def _price_level_to_hint(level):
     except:
         return "€"
     return ["€", "€€", "€€€", "€€€€", "€€€€€"][max(0, min(lvl, 4))]
-
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -84,6 +93,9 @@ def budget_update(request):
 
 from django.utils import timezone
 
+from django.utils import timezone
+from django.db.models import Sum
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def spending_list(request):
@@ -92,8 +104,43 @@ def spending_list(request):
     today = timezone.now().date()
     month_start = today.replace(day=1)
 
-    qs = Spending.objects.filter(user=request.user, date=month_start).order_by("category")
-    return Response(SpendingSerializer(qs, many=True).data)
+    # Sum all daily rows in the current month, grouped by category
+    monthly = (
+        Spending.objects
+        .filter(user=request.user, date__gte=month_start, date__lte=today)
+        .values("category")
+        .annotate(amount=Sum("amount"))
+        .order_by("category")
+    )
+
+    # Build response in the same shape your Flutter expects
+    # (category, amount, category_label)
+    rows = []
+    for item in monthly:
+        cat = item["category"]
+        rows.append({
+            "category": cat,
+            "amount": float(item["amount"] or 0),
+            "category_label": cat.capitalize(),  # or map properly if you have choices
+        })
+
+    # Ensure ALL categories exist (so wheel always has full list)
+    # budgets_list already ensures categories, but we also guarantee spendings list returns 8 cats
+    existing = {r["category"] for r in rows}
+    all_cats = ["rent", "utilities", "entertainment", "groceries",
+                "transportation", "healthcare", "savings", "other"]
+
+    for cat in all_cats:
+        if cat not in existing:
+            rows.append({
+                "category": cat,
+                "amount": 0.0,
+                "category_label": cat.capitalize(),
+            })
+
+    rows.sort(key=lambda x: x["category"])
+    return Response(rows)
+
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
@@ -124,6 +171,7 @@ from django.utils import timezone
 def add_receipt_spending(request):
     cat = request.data.get("category")
     amount_str = request.data.get("amount")
+    date_str = request.data.get("date")  # ✅ NEW: Get the date from the phone
 
     if not cat or amount_str is None:
         return Response({"error": "Category and amount required"}, status=400)
@@ -133,15 +181,27 @@ def add_receipt_spending(request):
     except:
         return Response({"error": "Invalid amount format"}, status=400)
 
-    today = timezone.now().date()
-    month_start = today.replace(day=1)
+    # ✅ NEW: Parse the specific date, or fallback to today
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            target_date = timezone.now().date()
+    else:
+        target_date = timezone.now().date()
 
-    obj, _ = Spending.objects.get_or_create(
+    # Normalize to the start of the month if your app only tracks monthly totals,
+    # BUT since your model constraint is (user, category, date), 
+    # we should probably update that SPECIFIC day's row.
+    
+    # Logic: Find the row for that specific Date + Category and add to it.
+    obj, created = Spending.objects.get_or_create(
         user=request.user,
         category=cat,
-        date=month_start,
+        date=target_date, # Use the receipt date
         defaults={"amount": 0},
     )
+    
     obj.amount += amount_to_add
     obj.save()
 
@@ -749,3 +809,208 @@ def recommend_places(request):
     recs = LLMService.recommend_local_places(user_data, category)
 
     return Response({"category": category, "recommendations": recs})
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI RECEIPT ANALYSIS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def analyze_receipt(request):
+    # 1. Get the image from the request
+    image_data = request.data.get('image') # Expecting base64 string
+    if not image_data:
+        return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 2. Setup OpenAI Client
+    # Ensure OPENAI_API_KEY is set in your Render Dashboard Environment Variables
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return Response({"error": "Server configuration error: Missing API Key"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    client = OpenAI(api_key=api_key) 
+
+    prompt_text = (
+        "Analyze this receipt. Return ONLY a JSON object. "
+        "Categorize this expense into EXACTLY one of these labels: "
+        "rent, utilities, entertainment, groceries, transportation, healthcare, savings, other. "
+        "Format: {'merchant': 'string', 'amount': number, 'category': 'string', 'date': 'YYYY-MM-DD'} "
+        "If the date is missing on the receipt, use today's date."
+    )
+
+    try:
+        # 3. Call OpenAI from the Server
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
+                        }
+                    ]
+                }
+            ],
+            max_tokens=500,
+        )
+
+        # 4. Clean and parse the response
+        content = response.choices[0].message.content
+        return Response(json.loads(content))
+
+    except Exception as e:
+        print(f"OpenAI Error: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_backfill(request):
+    # 📝 1. Initialize Log Collection (The "Echo" Logic)
+    debug_logs = []
+    
+    def log(msg):
+        print(msg)  # Print to Render/Terminal logs
+        debug_logs.append(str(msg))  # Add to list to send back to phone
+
+    log("🚀 STARTING BACKFILL (ECHO DEBUG MODE)...")
+    
+    # 2. Setup
+    account_type = request.data.get('account_type', 'Checking')
+    api_key = os.environ.get("OPENAI_API_KEY")
+    
+    if not api_key:
+        log("❌ Critical Error: Missing OPENAI_API_KEY")
+        return Response({
+            "error": "Server missing API Key", 
+            "debug_logs": debug_logs
+        }, status=500)
+        
+    client = OpenAI(api_key=api_key)
+    today = timezone.now().date().isoformat()
+    
+    # 3. Construct the Prompt (Persona Logic)
+    if account_type == 'Savings':
+        log("🤖 Mode: Savings Account")
+        prompt = f"""
+        Generate 5 realistic transactions for a Savings Account.
+        Return ONLY a JSON object with a key "transactions" containing a list.
+        Inner Keys: "amount" (float), "category" (must be "savings"), "date" (YYYY-MM-DD), "merchant".
+        
+        Transactions should be things like: "Interest Payment", "Monthly Deposit", "Transfer from Checking", "Goal Contribution".
+        Category must be exactly: "savings".
+        Amounts should be between 20.00 and 2000.00.
+        Dates: Randomly spaced over last 60 days from {today}.
+        """
+    else:
+        # Checking Account - Use Personas
+        personas = [
+            "a foodie who eats at restaurants constantly",
+            "a fitness enthusiast who buys supplements and gym gear",
+            "a tech lover who buys gadgets and subscriptions",
+            "a parent buying lots of groceries and kids' stuff",
+            "a traveler with hotel and airline expenses",
+            "a student with small, frugal transactions",
+        ]
+        random_persona = random.choice(personas)
+        log(f"🤖 Mode: Checking Account | Persona: {random_persona}")
+
+        prompt = f"""
+        Generate 15 realistic bank transactions for a user who is **{random_persona}**.
+        Return ONLY a JSON object with a key "transactions" containing a list.
+        Keys: "merchant", "amount" (float), "category", "date" (YYYY-MM-DD).
+        
+        CRITICAL RULES:
+        1. Mix these categories: rent, utilities, savings, healthcare, groceries, transportation, entertainment, other.
+        2. Do NOT generate more than 1 'rent' transaction.
+        3. 'groceries' or 'entertainment' should appear at least 5 times.
+        4. Dates must be varied over the last 30 days relative to {today}.
+        
+        Example format: {{"transactions": [{{"merchant": "Whole Foods", "amount": 45.20, "category": "groceries", "date": "{today}"}}]}}
+        """
+
+    try:
+        # 4. Call OpenAI
+        log("⏳ Asking OpenAI...")
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        
+        content = response.choices[0].message.content
+        # Log first 100 chars to verify we got JSON
+        log(f"📩 RAW AI RESPONSE (Snippet): {content[:100]}...") 
+
+        # 5. Parse JSON
+        data = json.loads(content)
+        transactions = data.get('transactions', [])
+        log(f"📊 Parsed {len(transactions)} transactions from AI.")
+
+        # 6. Save to Database Loop
+        saved_count = 0
+        valid_cats = ["rent", "utilities", "entertainment", "groceries", 
+                      "transportation", "healthcare", "savings", "other"]
+
+        for i, t in enumerate(transactions):
+            try:
+                # Extract Raw Data
+                cat_raw = t.get('category', 'unknown')
+                amt_raw = t.get('amount', 0)
+                date_raw = t.get('date', today)
+                merchant_raw = t.get('merchant', 'Unknown') # Not saved to DB, but good for logs
+                
+                log(f"   [{i}] Processing: {merchant_raw} | {cat_raw} | {amt_raw}")
+
+                # Normalize Category
+                cat = cat_raw.lower().strip()
+                if cat not in valid_cats:
+                    log(f"      ⚠️ Invalid category '{cat}'. Mapping to 'other'.")
+                    cat = "other"
+
+                # Parse Amount
+                amount = Decimal(str(amt_raw))
+
+                # Parse Date
+                try:
+                    date_obj = datetime.strptime(date_raw, "%Y-%m-%d").date()
+                except ValueError:
+                    log(f"      ⚠️ Date format error for '{date_raw}'. Using today.")
+                    date_obj = timezone.now().date()
+
+                # DB Operation: Update existing day or create new
+                obj, created = Spending.objects.get_or_create(
+                    user=request.user,
+                    category=cat,
+                    date=date_obj,
+                    defaults={'amount': 0}
+                )
+                
+                old_amount = obj.amount
+                obj.amount += amount
+                obj.save()
+                
+                log(f"      ✅ Saved! New Total: {obj.amount}")
+                saved_count += 1
+
+            except Exception as inner_e:
+                log(f"      ❌ FAILED item {i}: {inner_e}")
+
+        # 7. Final Response
+        log(f"🏁 FINISHED. Successfully saved {saved_count}/{len(transactions)}")
+        
+        return Response({
+            "count": saved_count, 
+            "message": "Debug complete",
+            "debug_logs": debug_logs 
+        })
+
+    except Exception as e:
+        log(f"🔥 CRITICAL ERROR: {e}")
+        return Response({
+            "error": str(e), 
+            "debug_logs": debug_logs
+        }, status=500)
